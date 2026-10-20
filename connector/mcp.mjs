@@ -11,7 +11,7 @@ function invoke(name, args) {
     socket.setEncoding("utf8");
     let buffer = "";
     socket.setTimeout(45_000, () => socket.destroy(new Error("浏览器工具响应超时")));
-    socket.on("connect", () => socket.write(JSON.stringify({ token: process.env.BEEHELPER_TOKEN, name, args }) + "\n"));
+    socket.on("connect", () => socket.write(JSON.stringify({ token: process.env.BEEHELPER_TOKEN, sessionId: process.env.BEEHELPER_SESSION_ID, connectionId: process.env.BEEHELPER_CONNECTION_ID, name, args }) + "\n"));
     socket.on("data", chunk => {
       buffer += chunk.toString("utf8");
       if (buffer.length > 5_000_000) return socket.destroy(new Error("工具响应过大"));

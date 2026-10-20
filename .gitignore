@@ -17,3 +17,4 @@ test-results/
 *.tsbuildinfo
 coverage/
 blob-report/
+*.beechat.json

@@ -1,5 +1,5 @@
 {
-  "version": "0.1.1",
+  "version": "0.3.0",
   "tools": ["capabilities_get", "microapp_list", "microapp_get", "microapp_create", "microapp_update", "microapp_run", "microapp_install", "run_list", "run_get", "browser_tabs", "browser_inspect", "browser_action", "browser_open"],
   "browser": {
     "actions": ["click", "fill", "select"],

@@ -1,6 +1,8 @@
 import { applyOperation, findEntry, importPackage, type Database, type Operation, type Run } from "./core/model";
 import { createInitialDatabase } from "./core/samples";
 import type { ConnectorStatus, Envelope } from "./core/protocol";
+import { createSession, migrateSessions, requireSession, selectSession, syncChatProjection } from "./core/sessions";
+import { validateDraft } from "./core/chat-content";
 
 export const extensionMode = typeof chrome !== "undefined" && Boolean(chrome.runtime?.id);
 const clientId = crypto.randomUUID();
@@ -9,13 +11,13 @@ window.addEventListener("pagehide", () => uiPort?.disconnect());
 let webDatabase: Database;
 function loadWeb(): Database {
   if (!webDatabase) {
-    try { webDatabase = JSON.parse(localStorage.getItem("beehelper.database") ?? "null") ?? createInitialDatabase(); }
-    catch { webDatabase = createInitialDatabase(); }
+    try { webDatabase = migrateSessions(JSON.parse(localStorage.getItem("beehelper.database") ?? "null") ?? createInitialDatabase(), true); }
+    catch { webDatabase = migrateSessions(createInitialDatabase()); }
   }
   return webDatabase;
 }
 function saveWeb(db: Database) {
-  webDatabase = db; localStorage.setItem("beehelper.database", JSON.stringify(db));
+  syncChatProjection(db); webDatabase = db; localStorage.setItem("beehelper.database", JSON.stringify(db));
   window.dispatchEvent(new CustomEvent("bee:event", { detail: { type: "database" } }));
 }
 export async function request<T = any>(type: string, data: Record<string, unknown> = {}): Promise<T> {
@@ -28,6 +30,17 @@ export async function request<T = any>(type: string, data: Record<string, unknow
   if (type === "state") return { db, connector: { connected: false } as ConnectorStatus } as T;
   if (type === "tabs") return [] as T;
   if (type === "scriptsStatus") return { available: false } as T;
+  if (type === "providers") return [] as T;
+  if (type === "sessionDraft") {
+    const session = requireSession(db, data.sessionId as string | undefined);
+    session.draft = validateDraft(data.draft); session.draftUpdatedAt = Number(data.updatedAt) || Date.now();
+    saveWeb(db); return true as T;
+  }
+  if (type === "sessionNew" || type === "newChat") {
+    const session = createSession(String(data.providerId ?? "codex")); db.sessions!.unshift(session);
+    selectSession(db, session.id); saveWeb(db); return session as T;
+  }
+  if (type === "sessionSelect") { selectSession(db, String(data.sessionId)); saveWeb(db); return true as T; }
   if (type === "operation") {
     const result = applyOperation(db, data.operation as Operation); saveWeb(result.db); return result.entry as T;
   }
@@ -59,7 +72,7 @@ export async function request<T = any>(type: string, data: Record<string, unknow
     if (data.method === "set") localStorage.setItem(key, JSON.stringify(data.value));
     return JSON.parse(localStorage.getItem(key) ?? "null") as T;
   }
-  throw new Error("此操作需要 Chrome 扩展与本地 Codex 连接器");
+  throw new Error("此操作需要 Chrome 扩展与本地 Agent 连接器");
 }
 export function subscribe(callback: (event: any) => void): () => void {
   if (extensionMode) {

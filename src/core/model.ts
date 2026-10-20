@@ -1,4 +1,6 @@
 import { z } from "zod";
+import type { ChatSession } from "./sessions";
+import type { ChatAttachment, ChatReference } from "./chat-content";
 
 export const DefinitionSchema = z.object({
   schemaVersion: z.literal(1),
@@ -14,8 +16,13 @@ export interface Revision { id: string; createdAt: number; definition: Definitio
 export interface Entry { id: string; installed: boolean; enabled: boolean; favorite: boolean; revisionId: string; revisions: Revision[] }
 export type RunStatus = "running" | "active" | "succeeded" | "failed" | "stopped" | "unknown";
 export interface Run { id: string; appId: string; revisionId: string; title: string; tabId?: number; status: RunStatus; startedAt: number; logs: { time: number; level: string; text: string }[]; trial: boolean }
-export interface ChatMessage { id: string; role: "user" | "assistant" | "tool" | "error"; text: string; time: number }
-export interface Database { version: 1; entries: Entry[]; runs: Run[]; chat: ChatMessage[]; threadId?: string }
+export interface ChatMessage {
+  id: string; role: "user" | "assistant" | "tool" | "error"; text: string; time: number;
+  delivery?: "queued" | "sending" | "sent" | "failed" | "unknown";
+  attachments?: ChatAttachment[]; references?: ChatReference[];
+  tool?: { id: string; title: string; status: string };
+}
+export interface Database { version: 1 | 2; entries: Entry[]; runs: Run[]; chat: ChatMessage[]; threadId?: string; sessions?: ChatSession[]; activeSessionId?: string }
 export type Operation =
   | { type: "create"; definition: Definition; source?: string }
   | { type: "edit"; id: string; expectedRevision: string; definition: Definition; source?: string }

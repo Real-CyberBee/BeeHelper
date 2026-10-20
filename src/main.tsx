@@ -5,6 +5,8 @@ import { current, exportPackage, matchesUrl, type Database, type Definition, typ
 import { panelSample } from "./core/samples";
 import type { ConnectorStatus, TargetTab } from "./core/protocol";
 import { extensionMode, request, subscribe } from "./client";
+import { AgentChat } from "./components/AgentChat";
+import { activeSession, sessionBusy, type AgentProvider } from "./core/sessions";
 import "./style.css";
 
 const stamp = (time: number) => new Date(time).toLocaleString("zh-CN", { hour12: false, month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -59,14 +61,12 @@ function App() {
   const [preview, setPreview] = useState<Preview>();
   const [notice, setNotice] = useState("");
   const [pending, setPending] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [prompt, setPrompt] = useState("");
+  const [providers, setProviders] = useState<AgentProvider[]>([]);
   const [settings, setSettings] = useState(false);
-  const [models, setModels] = useState<{ model: string; displayName: string }[]>([]);
-  const [model, setModel] = useState("");
   const [scriptsReady, setScriptsReady] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
-  const chatEnd = useRef<HTMLDivElement>(null);
+  const busy = sessionBusy(db ? activeSession(db) : undefined);
+  const providerName = providers.find(item => item.id === (db ? activeSession(db)?.providerId : "codex"))?.name ?? "AI";
   const selected = db?.entries.find(entry => entry.id === selectedId);
   const revision = selected ? current(selected) : undefined;
   const dirty = Boolean(editor && revision && JSON.stringify(editor.definition) !== JSON.stringify(selected?.revisions.find(item => item.id === editor.base)?.definition));
@@ -75,17 +75,18 @@ function App() {
   const latestRun = db?.runs.find(run => run.appId === selectedId);
   const refresh = useCallback(async () => {
     const result = await request<{ db: Database; connector: ConnectorStatus }>("state");
-    setDb(result.db); setConnector(result.connector); setBusy(Boolean(result.connector.busy));
+    setDb(result.db); setConnector(result.connector);
   }, []);
   const refreshTargets = useCallback(async () => { const tabs = await request<TargetTab[]>("tabs"); setTargets(tabs); setTargetId(current => tabs.some(tab => tab.id === current) ? current : tabs.find(tab => tab.active)?.id); }, []);
   useEffect(() => {
     void refresh().catch(error => setNotice(String(error)));
     void refreshTargets();
     void request("scriptsStatus").then(result => setScriptsReady(result.available));
+    if (extensionMode) void request<AgentProvider[]>("providers").then(setProviders).catch(error => setNotice(String(error)));
     return subscribe(event => {
       if (event.type === "database") void refresh();
       if (event.type === "status") setConnector(event.status);
-      if (event.type === "connector") { setConnector(event.status); if (!event.status.connected) setBusy(false); }
+      if (event.type === "connector") setConnector(event.status);
       if (event.type === "panelPreview") {
         if (dirtyRef.current && selectedRef.current !== event.appId) {
           setNotice("当前源码尚未保存，请保存后再打开新微应用的效果");
@@ -95,9 +96,7 @@ function App() {
         setPreview(event); setSelectedId(event.appId); setTab("result"); setMobileView("detail");
       }
       if (event.type === "stopPanel") setPreview(current => current?.runId === event.runId ? undefined : current);
-      if (event.type === "busy") setBusy(event.value);
-      if (event.type === "done") setBusy(false);
-      if (event.type === "error") setNotice(event.message);
+      if (event.type === "error" && !event.sessionId) setNotice(event.message);
     });
   }, [refresh, refreshTargets]);
   useEffect(() => { if (!selectedId && db?.entries.length) setSelectedId(db.entries[0].id); }, [db, selectedId]);
@@ -106,7 +105,6 @@ function App() {
     if (editor?.id === selected.id && dirtyRef.current) return;
     setEditor({ id: selected.id, base: revision.id, definition: structuredClone(revision.definition) });
   }, [selectedId, revision?.id]);
-  useEffect(() => { chatEnd.current?.scrollIntoView({ block: "end" }); }, [db?.chat.at(-1)?.text]);
   const act = async <T,>(callback: () => Promise<T>): Promise<T | undefined> => {
     setPending(true); setNotice("");
     try { return await callback(); } catch (error) { setNotice(error instanceof Error ? error.message : String(error)); }
@@ -140,17 +138,7 @@ function App() {
     setSelectedId(entry.id); setMobileView("detail"); setScope("drafts"); setMetadata(true); setTab("code");
   }
   async function connectAgent() {
-    const status = await request<ConnectorStatus>("connect"); setConnector(status);
-    const result = await request("models"); setModels(result.data ?? []);
-  }
-  async function sendPrompt(event: React.FormEvent) {
-    event.preventDefault();
-    const text = prompt.trim(); if (!text || busy) return;
-    setPrompt(""); setBusy(true); setNotice("");
-    try {
-      await request("chat", { text, model: model || undefined, context: { selectedAppId: selected?.id, revisionId: revision?.id, targetTabId: targetId, hasUnsavedChanges: dirty } });
-      await refresh();
-    } catch (error) { setBusy(false); setNotice(String(error)); setPrompt(text); }
+    const status = await request<ConnectorStatus>("connect", { sessionId: db?.activeSessionId }); setConnector(status); await refresh();
   }
   function downloadApp(entry: Entry) {
     const url = URL.createObjectURL(new Blob([exportPackage(entry)], { type: "application/json" }));
@@ -169,7 +157,7 @@ function App() {
     <header className="topbar">
       <div className="brand"><span className="brand-mark"><Blocks size={20} /></span><strong>BeeHelper</strong><span className="version">LOCAL</span></div>
       <div className="top-actions">
-        <button className={`connection ${connector.ready ? "connected" : ""}`} onClick={() => { setSettings(true); }}><span className="status-dot" /> <span>Codex {connector.ready ? "已连接" : "未连接"}</span></button>
+        <button className={`connection ${connector.ready ? "connected" : ""}`} onClick={() => { setSettings(true); }}><span className="status-dot" /> <span>{providerName} {connector.ready ? "已连接" : "未连接"}</span></button>
         {extensionMode && <IconButton title="在标签页打开" onClick={() => { void chrome.tabs.create({ url: chrome.runtime.getURL("index.html") }); }}><ExternalLink size={16} /></IconButton>}
         <IconButton title="设置" onClick={() => setSettings(true)}><Settings2 size={17} /></IconButton>
       </div>
@@ -241,27 +229,29 @@ function App() {
         <footer className="workspace-footer"><span>{revision.definition.kind === "page" ? "JavaScript · 页面" : "JavaScript · 隔离界面"}</span><span>{selected.revisions.length} 个版本</span></footer>
       </> : <div className="empty"><Blocks size={32} /><p>选择一个微应用</p></div>}
     </main>
-    <aside className="chat">
-      <div className="chat-heading"><h2><MessageSquare size={17} />Codex</h2><IconButton title="新对话" disabled={busy} onClick={() => { void act(async () => { await request("newChat"); await refresh(); }); }}><Plus size={17} /></IconButton></div>
-      <div className="chat-context"><span className="status-dot" /><span>{selected ? revision?.definition.title : "本地工作空间"}</span>{targetId && <small>网页 #{targetId}</small>}</div>
-      <div className="messages">
-        {!db.chat.length && <div className="chat-empty"><span className="agent-mark"><MessageSquare size={25} /></span><h3>新的对话</h3><span className="muted">Codex {connector.ready ? "已就绪" : "未连接"}</span></div>}
-        {db.chat.map(message => <div key={message.id} className={`message ${message.role}`}><div className="message-label">{message.role === "user" ? "你" : message.role === "assistant" ? "Codex" : message.role === "tool" ? "工具" : "错误"}<time>{stamp(message.time)}</time></div><div>{message.text}</div></div>)}
-        {busy && <div className="working"><LoaderCircle size={14} className="spin" />Codex 正在运行</div>}<div ref={chatEnd} />
-      </div>
-      <form className="composer" onSubmit={event => { void sendPrompt(event); }}>
-        <textarea aria-label="发送给 Codex" placeholder="描述任务或想要修改的地方…" value={prompt} onChange={event => setPrompt(event.target.value)} rows={3} onKeyDown={event => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); void sendPrompt(event); } }} />
-        <div className="composer-actions"><select aria-label="模型" value={model} onChange={event => setModel(event.target.value)}><option value="">Codex 默认模型</option>{models.map(item => <option key={item.model} value={item.model}>{item.displayName ?? item.model}</option>)}</select>{busy ? <IconButton title="停止 Codex" onClick={() => { void act(() => request("cancel")); }}><Square size={16} /></IconButton> : <button type="submit" className="send-button" disabled={!prompt.trim()} aria-label="发送"><Send size={16} /></button>}</div>
-      </form>
-    </aside>
-    <nav className="mobile-nav"><button className={mobileView === "library" ? "active" : ""} onClick={() => setMobileView("library")}><Blocks size={18} />微应用</button><button className={mobileView === "detail" ? "active" : ""} disabled={!selected} onClick={() => setMobileView("detail")}><Code2 size={18} />工作台</button><button className={mobileView === "chat" ? "active" : ""} onClick={() => setMobileView("chat")}><MessageSquare size={18} />Codex{busy && <span className="status-dot" />}</button></nav>
+    <AgentChat database={db} providers={providers} context={{ selectedAppId: selected?.id, revisionId: revision?.id, targetTabId: targetId, hasUnsavedChanges: dirty }} contextLabel={revision?.definition.title} refresh={refresh} onError={setNotice} />
+    <nav className="mobile-nav"><button className={mobileView === "library" ? "active" : ""} onClick={() => setMobileView("library")}><Blocks size={18} />微应用</button><button className={mobileView === "detail" ? "active" : ""} disabled={!selected} onClick={() => setMobileView("detail")}><Code2 size={18} />工作台</button><button className={mobileView === "chat" ? "active" : ""} onClick={() => setMobileView("chat")}><MessageSquare size={18} />AI 会话{busy && <span className="status-dot" />}</button></nav>
     <input type="file" ref={fileInput} hidden accept=".json,application/json" onChange={event => {
       const file = event.target.files?.[0]; event.target.value = ""; if (!file) return;
       if (dirty && !confirm("当前源码尚未保存，仍要导入并切换吗？")) return;
       dirtyRef.current = false;
       void act(async () => { if (file.size > 5_000_000) throw new Error("微应用包超过 5 MB"); const entry = await request<Entry>("import", { text: await file.text() }); await refresh(); setSelectedId(entry.id); setScope("drafts"); setMobileView("detail"); });
     }} />
-    {settings && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setSettings(false); }}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title"><div className="modal-heading"><h2 id="settings-title">本地连接</h2><IconButton title="关闭设置" onClick={() => setSettings(false)}><X size={18} /></IconButton></div><div className="setting-row"><span>运行环境</span><strong>{extensionMode ? "Chrome 扩展" : "网页预览"}</strong></div><div className="setting-row"><span>扩展标识</span><code>{extensionMode ? chrome.runtime.id : "—"}</code></div><div className="setting-row"><span>Codex</span><strong>{connector.version ?? (connector.ready ? "已就绪" : "未连接")}</strong></div>{connector.authenticated !== undefined && <div className="setting-row"><span>登录状态</span><strong>{connector.authenticated ? "已登录" : "未登录"}</strong></div>}<div className="setting-row"><span>页面脚本</span><strong>{scriptsReady ? "可用" : "未启用"}</strong></div>{connector.error && <div className="setting-error">{connector.error}</div>}<div className="modal-actions">{extensionMode && <button className="secondary" onClick={() => { void chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` }); }}>扩展详情<ExternalLink size={14} /></button>}<button className="primary" disabled={pending || !extensionMode} onClick={() => { void act(connectAgent); }}><Plug size={15} />{pending ? "连接中…" : connector.ready ? "检查连接" : "连接 Codex"}</button></div></section></div>}
+    {settings && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setSettings(false); }}>
+      <section className="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <div className="modal-heading"><h2 id="settings-title">本地连接</h2><IconButton title="关闭设置" onClick={() => setSettings(false)}><X size={18} /></IconButton></div>
+        <div className="setting-row"><span>运行环境</span><strong>{extensionMode ? "Chrome 扩展" : "网页预览"}</strong></div>
+        <div className="setting-row"><span>扩展标识</span><code>{extensionMode ? chrome.runtime.id : "—"}</code></div>
+        <div className="setting-row"><span>当前会话</span><strong>{providerName} · {connector.version ?? (connector.ready ? "已就绪" : "未连接")}</strong></div>
+        {connector.authenticated !== undefined && <div className="setting-row"><span>登录状态</span><strong>{connector.authenticated ? "已登录" : "未登录"}</strong></div>}
+        <div className="setting-row"><span>页面脚本</span><strong>{scriptsReady ? "可用" : "未启用"}</strong></div>
+        {providers.map(provider => <div className="agent-provider-status" key={provider.id}><div><span>{provider.name}</span><span className={`badge ${provider.available ? "green" : ""}`}>{provider.available ? "可连接" : provider.installed ? "已安装 · 需适配" : "未就绪"}</span></div>{provider.reason && !provider.available && <small>{provider.reason}</small>}</div>)}
+        {connector.error && <div className="setting-error">{connector.error}</div>}
+        <div className="modal-actions">{extensionMode && <button className="secondary" onClick={() => { void chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` }); }}>扩展详情<ExternalLink size={14} /></button>}
+          <button className="primary" disabled={pending || busy || !extensionMode} onClick={() => { void act(connectAgent); }}><Plug size={15} />{pending ? "连接中…" : connector.ready ? "检查连接" : `连接 ${providerName}`}</button>
+        </div>
+      </section>
+    </div>}
   </div>;
 }
 function RunOutput({ run, onStop }: { run?: Run; onStop: (id: string) => void }) {

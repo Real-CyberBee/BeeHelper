@@ -167,7 +167,7 @@ if (!disabled) throw new Error("误操作禁用控件");`
     const download = await downloadPromise;
     const contents = await readFile((await download.path())!, "utf8");
     const before = (await rpc(ui, "state")).db.entries.length;
-    await ui.locator('input[type="file"]').setInputFiles({ name: "import.beehelper.json", mimeType: "application/json", buffer: Buffer.from(contents) });
+    await ui.locator('input[type="file"][accept=".json,application/json"]').setInputFiles({ name: "import.beehelper.json", mimeType: "application/json", buffer: Buffer.from(contents) });
     await expect.poll(async () => (await rpc(ui, "state")).db.entries.length).toBe(before + 1);
     expect((await rpc(ui, "state")).db.entries[0].installed).toBe(false);
   });
@@ -280,5 +280,33 @@ if (!disabled) throw new Error("误操作禁用控件");`
     await expect(demo.locator("#beehelper-launcher")).toBeVisible();
     await demo.locator("#beehelper-launcher").click();
     await expect.poll(async () => ui.evaluate(async () => (await chrome.runtime.getContexts({ contextTypes: [chrome.runtime.ContextType.SIDE_PANEL] })).length)).toBeGreaterThan(0);
+  });
+  test("真实 Codex 读取显式上传的 CSV 与图片", async () => {
+    test.skip(process.env.BEEHELPER_LIVE_CODEX !== "1", "按需开启真实模型请求");
+    test.setTimeout(240_000);
+    await rpc(ui, "sessionNew", { providerId: "codex" }); await rpc(ui, "connect");
+    const state = await rpc(ui, "state"), session = state.db.sessions.find((item: any) => item.id === state.db.activeSessionId);
+    const vision = session.models.find((item: any) => item.id === session.appliedModel && item.inputModalities?.includes("image")) ?? session.models.find((item: any) => item.inputModalities?.includes("image"));
+    expect(vision, "当前客户端没有声明可用的图片模型").toBeTruthy();
+    if (vision.id !== session.appliedModel) await rpc(ui, "sessionModel", { model: vision.id });
+    const image = await ui.evaluate(() => {
+      const canvas = document.createElement("canvas"); canvas.width = 120; canvas.height = 40;
+      const context = canvas.getContext("2d")!;
+      for (const [index, color] of ["#ed3030", "#27ad43", "#286ee8"].entries()) { context.fillStyle = color; context.fillRect(index * 40, 0, 40, 40); }
+      return canvas.toDataURL("image/png").split(",")[1];
+    });
+    await ui.getByLabel("附件文件", { exact: true }).setInputFiles([
+      { name: "probe.csv", mimeType: "text/csv", buffer: Buffer.from("item,value\nprobe,8472\n") },
+      { name: "picture.png", mimeType: "image/png", buffer: Buffer.from(image, "base64") }
+    ]);
+    await expect(ui.locator(".composer .attachment-item")).toHaveCount(2);
+    await expect(ui.getByLabel("附件上传进度")).toHaveCount(0);
+    await ui.getByLabel("发送给 Codex", { exact: true }).fill("请只根据本轮附带的 CSV 和图片，读出 CSV 中 probe 的 value，并数出图片中并排的垂直色块数量。仅按「数值;数量」回复。不要读取网页、微应用或其他文件，不修改任何东西。");
+    await ui.getByRole("button", { name: "发送", exact: true }).click();
+    await expect(ui.locator(".messages .message.user")).toContainText("请只根据本轮");
+    await expect.poll(async () => (await rpc(ui, "state")).connector.busy, { timeout: 210_000 }).toBe(false);
+    const result = await rpc(ui, "state");
+    const text = result.db.chat.filter((message: any) => message.role === "assistant").map((message: any) => message.text).join("\n");
+    expect(text).toMatch(/8472\s*[;；]\s*(?:3|三)/);
   });
 });

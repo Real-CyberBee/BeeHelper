@@ -1,0 +1,9 @@
+{
+  "maxFiles": 8,
+  "maxFileBytes": 20971520,
+  "maxImageBytes": 4194304,
+  "maxMessageFileBytes": 33554432,
+  "chunkBytes": 196608,
+  "maxEmbeddedTextBytes": 262144,
+  "maxReferences": 20
+}

@@ -6,20 +6,21 @@ import { pageProgram, stopProgram } from "./runtime";
 import { browserAction, inspectPage } from "./browser-tools";
 import capabilities from "../shared/capabilities.json";
 import { buildAgentContext, getRun, listRuns } from "./core/agent-context";
+import { requireSession, migrateSessions, syncChatProjection, applySessionEvent } from "./core/sessions";
+import { AgentSessionService } from "./agents/session-service";
 
 let db: Database;
 let transaction: Promise<unknown> = Promise.resolve();
 let port: chrome.runtime.Port | undefined;
 let connector: ConnectorStatus = { connected: false };
-let activeClientId: string | undefined;
 const uiClients = new Set<string>();
 const panelOwners = new Map<string, string>();
-const pendingDeltas = new Map<string, string>();
+const pendingDeltas = new Map<string, Record<string, any>>();
 let deltaTimer: ReturnType<typeof setTimeout> | undefined;
 const nativePending = new Map<string, { resolve: (value: unknown) => void; reject: (reason: Error) => void; timeout: ReturnType<typeof setTimeout> }>();
 const activeRuns = new Map<string, { appId: string; runId: string; tabId: number; url: string; revisionId: string; documentId?: string; clientId?: string }>();
 const storeReady = chrome.storage.local.get("database").then(async ({ database }) => {
-  db = (database as Database | undefined) ?? createInitialDatabase();
+  db = migrateSessions((database as Database | undefined) ?? createInitialDatabase(), true);
   for (const run of db.runs) if (run.status === "running" || run.status === "active") run.status = "unknown";
   await chrome.storage.local.set({ database: db });
 });
@@ -29,6 +30,7 @@ async function mutate<T>(callback: (database: Database) => T): Promise<T> {
     await storeReady;
     const updated = structuredClone(db);
     const result = callback(updated);
+    syncChatProjection(updated);
     await chrome.storage.local.set({ database: updated });
     db = updated;
     broadcast({ type: "database" });
@@ -51,12 +53,7 @@ function flushDeltas() {
   if (!pendingDeltas.size) return;
   const batch = [...pendingDeltas]; pendingDeltas.clear();
   void mutate(database => {
-    for (const [id, text] of batch) {
-      const existing = database.chat.find(message => message.id === id);
-      if (existing) existing.text += text;
-      else database.chat.push({ id, role: "assistant", text, time: Date.now() });
-    }
-    database.chat = database.chat.slice(-100);
+    for (const [, event] of batch) applySessionEvent(database, event);
   });
 }
 async function availableScripts() {
@@ -76,7 +73,7 @@ async function stopApp(appId: string, tabId?: number) {
     await logRun(active.runId, "info", "已结束页面实例；外部业务操作不会回滚", "stopped");
   }
 }
-async function runApp(appId: string, revisionId: string, tabId?: number, automatic = false, clientId = activeClientId) {
+async function runApp(appId: string, revisionId: string, tabId?: number, automatic = false, clientId?: string) {
   await storeReady;
   const entry = findEntry(db, appId);
   const revision = entry.revisions.find(item => item.id === revisionId);
@@ -148,9 +145,12 @@ async function capability(appId: string, type: string, data: any = {}): Promise<
   }
   throw new Error("未知微应用能力");
 }
-async function invokeTool(name: string, args: any): Promise<unknown> {
+async function invokeTool(name: string, args: any, scope?: { sessionId?: string; connectionId?: string }): Promise<unknown> {
   await storeReady;
   await transaction.catch(() => {});
+  const session = requireSession(db, scope?.sessionId);
+  if (!scope?.connectionId || session.archived || session.connectionId !== scope.connectionId || ["disconnected", "unknown"].includes(session.state)) throw new Error("工具所属会话连接已失效");
+  const source = session.providerId === "codex" ? "Codex" : session.providerId;
   if (name === "capabilities_get") {
     let userScriptsAvailable = true;
     try { await availableScripts(); } catch { userScriptsAvailable = false; }
@@ -159,12 +159,12 @@ async function invokeTool(name: string, args: any): Promise<unknown> {
   if (name === "microapp_list") return db.entries.map(entry => ({ id: entry.id, installed: entry.installed, revisionId: entry.revisionId, ...current(entry).definition }));
   if (name === "microapp_get") return findEntry(db, args.id);
   if (name === "microapp_create") return (await mutate(database => {
-    const result = applyOperation(database, { type: "create", definition: validateDefinition(args.definition), source: "Codex" }); Object.assign(database, result.db); return result.entry;
+    const result = applyOperation(database, { type: "create", definition: validateDefinition(args.definition), source }); Object.assign(database, result.db); return result.entry;
   }));
   if (name === "microapp_update") return (await mutate(database => {
-    const result = applyOperation(database, { type: "edit", id: args.id, expectedRevision: args.expectedRevision, definition: validateDefinition(args.definition), source: "Codex" }); Object.assign(database, result.db); return result.entry;
+    const result = applyOperation(database, { type: "edit", id: args.id, expectedRevision: args.expectedRevision, definition: validateDefinition(args.definition), source }); Object.assign(database, result.db); return result.entry;
   }));
-  if (name === "microapp_run") return runApp(args.id, args.revisionId, args.tabId);
+  if (name === "microapp_run") return runApp(args.id, args.revisionId, args.tabId, false, session.executionClientId);
   if (name === "microapp_install") return handle({ type: "operation", operation: { type: "install", id: args.id, revisionId: args.revisionId } });
   if (name === "run_list") return listRuns(db, args);
   if (name === "run_get") return getRun(db, args);
@@ -187,6 +187,8 @@ function connectNative() {
     port = undefined;
     for (const pending of nativePending.values()) { clearTimeout(pending.timeout); pending.reject(new Error(connector.error)); }
     nativePending.clear();
+    flushDeltas();
+    void mutate(database => { Object.assign(database, migrateSessions(database, true)); });
     broadcast({ type: "connector", status: connector });
   });
   port.onMessage.addListener((message: NativeMessage) => {
@@ -194,24 +196,21 @@ function connectNative() {
       const pending = nativePending.get(message.id);
       if (pending) { clearTimeout(pending.timeout); nativePending.delete(message.id); message.error ? pending.reject(new Error(message.error)) : pending.resolve(message.result); }
     } else if (message.kind === "tool") {
-      void invokeTool(message.name!, message.args).then(result => port?.postMessage({ kind: "toolResult", id: message.id, result }), error => port?.postMessage({ kind: "toolResult", id: message.id, error: String(error) }));
+      const sourcePort = port;
+      void invokeTool(message.name!, message.args, message).then(result => sourcePort?.postMessage({ kind: "toolResult", id: message.id, result }), error => sourcePort?.postMessage({ kind: "toolResult", id: message.id, error: String(error) })).catch(() => {});
     } else if (message.kind === "event" && message.event) {
       const event = message.event;
-      if (event.type === "status") connector = { connected: true, ready: true, ...event.status as object };
-      if (event.type === "busy") connector.busy = Boolean(event.value);
-      if (event.type === "done") connector.busy = false;
-      if (event.type === "thread" && typeof event.threadId === "string") void mutate(database => { database.threadId = event.threadId as string; });
       if (event.type === "delta" && typeof event.text === "string") {
-        const id = String(event.messageId);
-        pendingDeltas.set(id, (pendingDeltas.get(id) ?? "") + event.text);
+        const id = `${event.sessionId}:${event.connectionId}:${event.messageId}`;
+        pendingDeltas.set(id, { ...event, text: (pendingDeltas.get(id)?.text ?? "") + event.text });
         deltaTimer ??= setTimeout(flushDeltas, 80);
         return;
-      } else if (event.type === "tool" || event.type === "error") {
-        flushDeltas();
-        void mutate(database => { database.chat.push({ id: crypto.randomUUID(), role: event.type === "error" ? "error" : "tool", text: String(event.message), time: Date.now() }); database.chat = database.chat.slice(-100); });
       }
-      if (event.type === "done") flushDeltas();
-      broadcast(event);
+      flushDeltas();
+      void agentSessions.receive(event).then(applied => {
+        if (!applied) return;
+        broadcast(event);
+      });
     }
   });
 }
@@ -224,16 +223,37 @@ async function nativeRpc(method: string, params: unknown = {}) {
     port!.postMessage({ kind: "rpc", id, method, params });
   });
 }
+const agentSessions = new AgentSessionService({
+  read: () => db, mutate, request: nativeRpc, connected: () => Boolean(port),
+  clientAlive: id => uiClients.has(id),
+  context: async selection => buildAgentContext(db, selection, await targetTabs()),
+  references: async references => {
+    const tabs = await targetTabs();
+    return references.map(reference => {
+      if (reference.kind === "microapp") {
+        const entry = findEntry(db, reference.id), revision = current(entry);
+        return { kind: reference.kind, id: entry.id, label: revision.definition.title, revisionId: revision.id };
+      }
+      if (reference.kind === "page") {
+        const tab = tabs.find(tab => String(tab.id) === reference.id);
+        if (!tab) throw new Error("引用页面已关闭或不可访问，请重新选择");
+        return { kind: reference.kind, id: String(tab.id), label: tab.title, url: tab.url };
+      }
+      return reference;
+    });
+  }
+});
 const plugins = createPluginHost([
   { name: "local-library", services: { store: { mutate } } },
   { name: "page-runtime", services: { runtime: { run: runApp, stop: stopApp } } },
-  { name: "codex-connector", services: { agent: { request: nativeRpc } } }
+  { name: "agent-sessions", services: { agent: agentSessions } }
 ]);
 
 async function handle(message: any, sender?: chrome.runtime.MessageSender): Promise<unknown> {
   await storeReady;
+  if (agentSessions.accepts(message.type)) return plugins.get<AgentSessionService>("agent").handle(message);
   switch (message.type) {
-    case "state": return { db, connector };
+    case "state": await transaction.catch(() => {}); return { db, connector: agentSessions.status(connector) };
     case "tabs": return targetTabs();
     case "scriptsStatus":
       try { await availableScripts(); return { available: true }; } catch (error) { return { available: false, error: String(error) }; }
@@ -289,18 +309,6 @@ async function handle(message: any, sender?: chrome.runtime.MessageSender): Prom
       if (!run || run.tabId !== undefined || ["stopped", "unknown", "failed"].includes(run.status)) throw new Error("界面实例已失效");
       return capability(run.appId, message.capability, message.args);
     }
-    case "connect": return nativeRpc("status");
-    case "models": return nativeRpc("models");
-    case "cancel": return nativeRpc("cancel");
-    case "chat": {
-      const text = String(message.text ?? "").trim();
-      if (!text || text.length > 50_000) throw new Error("消息为空或过长");
-      activeClientId = message.clientId;
-      await mutate(database => { database.chat.push({ id: crypto.randomUUID(), role: "user", text, time: Date.now() }); });
-      const context = buildAgentContext(db, message.context ?? {}, await targetTabs());
-      return plugins.get<{ request: typeof nativeRpc }>("agent").request("chat", { text, threadId: db.threadId, model: message.model, context });
-    }
-    case "newChat": await nativeRpc("reset"); await mutate(database => { database.chat = []; database.threadId = undefined; }); return true;
     case "pageReady": if (sender?.tab?.id !== undefined) await reconcileTab(sender.tab.id, message.url); return true;
     case "openPanel": if (sender?.tab?.id !== undefined) await chrome.sidePanel.open({ tabId: sender.tab.id }); return true;
     default: throw new Error("未知操作");
@@ -323,6 +331,7 @@ chrome.runtime.onConnect.addListener(connection => {
   uiClients.add(clientId);
   connection.onDisconnect.addListener(() => {
     uiClients.delete(clientId);
+    void agentSessions.releaseClient(clientId);
     void (async () => {
       await storeReady;
       for (const [runId, owner] of panelOwners) if (owner === clientId) {
