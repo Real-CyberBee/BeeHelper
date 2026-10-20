@@ -1,0 +1,26 @@
+{
+  "version": "0.1.1",
+  "tools": ["capabilities_get", "microapp_list", "microapp_get", "microapp_create", "microapp_update", "microapp_run", "microapp_install", "run_list", "run_get", "browser_tabs", "browser_inspect", "browser_action", "browser_open"],
+  "browser": {
+    "actions": ["click", "fill", "select"],
+    "openShadowDOM": true,
+    "closedShadowDOM": false,
+    "mainDocumentOnly": true,
+    "nativeSelectOptions": true,
+    "hiddenFileInputMetadata": true,
+    "builtInFileUpload": false,
+    "inspectDefaultLimit": 200,
+    "inspectMaximumLimit": 500,
+    "requiresTargetPermission": true
+  },
+  "microapps": {
+    "readSource": "microapp_get",
+    "storage": "BeeHelper 本地库，不是 Codex 的工作目录",
+    "unsavedEditorContentAvailable": false,
+    "runIdentifier": "完整 runId，不是微应用 id 或缩略显示",
+    "recentRuns": "run_list",
+    "readRun": "run_get",
+    "retainedRuns": 100,
+    "activeMeaning": "脚本已挂载监听或界面，不代表按钮逻辑已执行或业务任务完成"
+  }
+}
