@@ -1,4 +1,4 @@
-import { applyOperation, findEntry, importPackage, type Database, type Operation, type Run } from "./core/model";
+import { applyOperation, current, findEntry, importPackage, type Database, type Operation, type Run } from "./core/model";
 import { createInitialDatabase } from "./core/samples";
 import type { ConnectorStatus, Envelope } from "./core/protocol";
 import { createSession, migrateSessions, requireSession, selectSession, syncChatProjection } from "./core/sessions";
@@ -72,6 +72,26 @@ export async function request<T = any>(type: string, data: Record<string, unknow
     if (data.method === "set") localStorage.setItem(key, JSON.stringify(data.value));
     return JSON.parse(localStorage.getItem(key) ?? "null") as T;
   }
+  if (type === "panelCapability") {
+    const run = db.runs.find(item => item.id === data.runId);
+    if (!run) throw new Error("界面实例已关闭");
+    const capability = String(data.capability ?? "");
+    const args = (data.args ?? {}) as Record<string, any>;
+    if (capability === "appsList") return db.entries.map(entry => {
+      const definition = current(entry).definition;
+      return { id: entry.id, title: definition.title, description: definition.description, kind: definition.kind, installed: entry.installed, enabled: entry.enabled, favorite: entry.favorite, revisionId: entry.revisionId, revisionCount: entry.revisions.length };
+    }) as T;
+    if (capability === "appsUpdate") {
+      if (typeof args.favorite === "boolean") saveWeb(applyOperation(db, { type: "favorite", id: String(args.id), value: args.favorite }).db);
+      if (typeof args.enabled === "boolean") saveWeb(applyOperation(db, { type: "enable", id: String(args.id), value: args.enabled }).db);
+      return { id: args.id } as T;
+    }
+    if (capability === "agentAsk") throw new Error("呼叫 AI 需要 Chrome 扩展并已连接 AI 客户端；网页预览没有会话连接");
+    if (capability === "appsRun") throw new Error("网页预览只能从工作台运行微应用；请在 Chrome 扩展中试用其他微应用");
+    throw new Error("此宿主能力需要 Chrome 扩展");
+  }
+  if (type === "userscriptSearch") throw new Error("脚本市场需要 Chrome 扩展：由后台统一抓取脚本源，避免网页跨域限制");
+  if (type === "userscriptImport") throw new Error("导入脚本源内容需要 Chrome 扩展；也可以下载 .user.js 后从脚本市场离线导入");
   throw new Error("此操作需要 Chrome 扩展与本地 Agent 连接器");
 }
 export function subscribe(callback: (event: any) => void): () => void {

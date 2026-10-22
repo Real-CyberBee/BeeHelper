@@ -39,8 +39,43 @@
 | `await bee.tabs.open(url)` | 打开 HTTP/HTTPS 页面，返回 `{id, url}` |
 | `await bee.tabs.inspect(tabId)` | 返回主文档文本、元素 selector、documentId |
 | `await bee.tabs.action(args)` | 在确切文档执行 click/fill/select |
+| `await bee.apps.list()` | 列出本地库中的微应用（标题、类型、安装/启用/收藏、当前版本，不含源码） |
+| `await bee.apps.run(id, tabId?)` | 运行另一个微应用；页面脚本必须给 tabId，界面型省略 |
+| `await bee.apps.update(id, {favorite?, enabled?})` | 修改收藏或启用状态，启用只对已安装微应用生效 |
+| `await bee.askAI(prompt)` | 把需求投递给当前已连接的 AI 会话，并自动附上当前微应用引用 |
 
 浏览器会话沿用实际页面的登录态，不提供虚构的独立账号容器。普通页面 `fetch` 遵循浏览器同源与凭据规则；SDK 不承诺任意 API 可跨域直接访问。
+
+## 组合与自我改造
+
+微应用不只是终点，也可以是其他微应用的调用方：
+
+```js
+// 列出并运行另一个微应用
+const apps = await bee.apps.list();
+const other = apps.find(app => app.title === "页面元素探针");
+if (other) await bee.apps.run(other.id, (await bee.tabs.list()).find(tab => tab.active)?.id);
+```
+
+```js
+// 让侧边栏里的 AI 改自己
+await bee.askAI("把界面改成两栏，左边输入右边结果，保留现有按钮");
+```
+
+`bee.askAI` 的实际行为：向当前活动会话投递一条消息，消息附带**当前微应用**作为引用，并进入正常消息队列；AI 用 `microapp_get` 读取源码、用 `microapp_update` 产生新版本。它不会绕过用户：AI 的改动仍是新版本，用户可以查看、试用或丢弃。
+
+前提与限制：
+
+- 需要用户已在侧边栏连接 AI 客户端；未连接时抛出可读错误，不会悄悄失败。
+- 会话正在执行时消息进入队列，不会打断当前任务。
+- 不要用 `bee.askAI` 偷偷收集页面内容发出去；它应该由用户的点击触发，并在界面里说明要做什么。
+- `bee.apps.run` 运行页面脚本需要明确的 tabId；运行界面型微应用会占用当前预览位。
+
+这两个能力是“一切皆插件”和“AI 改造自身”的基础，示例见[示例画廊](demos.md)。
+
+## 用户脚本导入
+
+从 Tampermonkey 生态导入的脚本会被转成普通微应用，并自动带上 GM 兼容层。转换规则、支持的 GM API、限制与 AI 工具见 [Tampermonkey 生态对接](userscripts.md)。
 
 ## 页面增强
 

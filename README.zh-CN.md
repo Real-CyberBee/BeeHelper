@@ -4,7 +4,17 @@
 
 浏览器侧边栏 AI 微应用工作台。借鉴 Tampermonkey 的脚本自由度，以浏览器环境下的 everything-is-a-plugin 为设计理念，通过本地插件连接 Codex、Claude Code 和 DeepSeek Harness。
 
-## 0.3.0 富会话交互
+## 0.4.0 蜜蜂黄与脚本生态
+
+- **蜜蜂黄浅色主题**：侧边栏、页面快捷入口、界面沙箱和本地测试站统一换成暖色浅色系。Logo 与扩展图标取自公司网站 [cyberbee.top](https://cyberbee.top)（`/logo/bee-96.png`、`/logo/bee-512.png`），派生图标在 `public/icons/`。
+- **脚本市场**：搜索 ScriptCat 脚本站（默认，国内通常可直连）与 GreasyFork 的热门脚本，查看安装量，并可**导入为候选微应用**——源码可见、可改、可先试用。规则与限制见[用户脚本导入](docs/userscripts.md)。
+- **真正的转换层**：解析 `// ==UserScript==` 元数据，`@match`/`@include` 转成匹配规则，`@exclude` 转成页面内检查，常用 `GM_*` API 通过兼容层映射到 `bee` SDK。导入默认手动运行，绝不自动安装。
+- **AI 也能找脚本**：新增 `userscript_search`、`userscript_import` 两个 Agent 工具，已加入 MCP 工具清单与能力清单；模型可以先找现成方案、说明取舍，用户确认后再导入。
+- **示例画廊：13 个可直接运行的示例**，包括让 AI 改造自己、插件中枢、网页批注笔、表格变图表、专注阅读、跨标签页情报官、私人短语库等。说明见[示例画廊](docs/demos.md)。
+- **新的宿主能力**：微应用可以调用 `bee.apps.list()/run()/update()` 调度其他微应用，或用 `bee.askAI(prompt)` 把需求交给已连接的 AI 会话（自动附带当前微应用引用，让 AI 改它自己）。宿主能力调用会写入运行日志。
+- **验证**：单元测试覆盖元数据解析、匹配规则转换、GM 兼容层生成、导入限制，以及每个示例的定义与源码编译。
+
+### 此前的 0.3.0 富会话交互
 
 - `/` 命令搜索与键盘选择，接入 ACP 实际命令、Codex 压缩，以及 BeeHelper 会话控制。
 - `@` 引用微应用、页面和 Codex 技能；本地文件通过显式选择添加。
@@ -56,6 +66,8 @@ npm run dev
 - 搜索、收藏、源码编辑、版本记录与恢复、导入导出。
 - 页面脚本、交互界面、跨标签页观察与操作、微应用私有存储。
 - 匹配页面自动激活、SPA 变化、事件登记与资源清理。
+- Tampermonkey 生态脚本市场（ScriptCat / GreasyFork / 本地 `.user.js`），带元数据转换与 GM 兼容层。
+- 13 个示例的画廊；微应用可以调度其他微应用（`bee.apps`），也可以让 AI 改造自己（`bee.askAI`）。
 - Codex App Server / ACP + MCP + Native Messaging 的连接，不自研 agent loop。
 - Codex 修改的是 BeeHelper 中的源码，不要求用户维护本地工程。
 
@@ -88,6 +100,8 @@ BEEHELPER_LIVE_CODEX=1 npm run test:e2e
 - [会话交互与附件](docs/chat-interactions.md)
 - [本机测试与排障](docs/local-testing.md)
 - [微应用格式与 SDK](docs/microapp-sdk.md)
+- [Tampermonkey 生态对接](docs/userscripts.md)
+- [示例画廊](docs/demos.md)
 - [本机验证记录](docs/verification.md)
 
 ## 首个验证场景

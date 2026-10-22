@@ -4,7 +4,17 @@ English | [简体中文](README.zh-CN.md)
 
 An AI microapp workbench in the browser sidebar. Inspired by Tampermonkey's scripting freedom and the everything-is-a-plugin architecture, BeeHelper lets you create, preview, install, and refine browser microapps through external coding agents. Local adapters connect Codex, Claude Code, and DeepSeek Harness.
 
-## What's New in 0.3.0
+## What's New in 0.4.0
+
+- **Honey-yellow light theme.** A warm, low-glare palette for the sidebar, the in-page launcher, the panel sandbox and the local demo site. The logo and extension icons come from the company site [cyberbee.top](https://cyberbee.top) (`/logo/bee-96.png`, `/logo/bee-512.png`); derived icons live in `public/icons/`.
+- **Script market for the Tampermonkey ecosystem.** Search popular scripts on ScriptCat (default; usually reachable from mainland China) and GreasyFork, preview install counts, and import a script as a **candidate microapp** – source visible, editable, trialable. Details and limits: [Userscripts](docs/userscripts.md).
+- **A real conversion layer.** `// ==UserScript==` metadata is parsed, `@match`/`@include` become match patterns, `@exclude` becomes an in-page guard, and a GM compatibility bridge maps common `GM_*` APIs onto the `bee` SDK. Imports default to manual runs and are never installed automatically.
+- **AI can search the ecosystem.** New agent tools `userscript_search` and `userscript_import`, registered in the MCP tool list and the capability manifest, so the model can find existing scripts, explain trade-offs, and import only after you choose.
+- **Demo gallery with 13 runnable examples**, including AI rewriting its own microapp, a "plugin hub" where microapps run other microapps, a page annotation pen, table-to-chart, a reader mode, a cross-tab intel panel and a personal phrase library. See [Demo Gallery](docs/demos.md).
+- **New host capabilities.** Microapps can call `bee.apps.list()/run()/update()` and `bee.askAI(prompt)`; the latter hands a request to the connected session with the current microapp attached as a reference, so the AI can modify it. Host-capability calls are written to run logs.
+- **Verification.** Unit tests now cover metadata parsing, pattern conversion, GM bridge generation, import limits, and every demo definition (including compiling each demo script).
+
+### Earlier 0.3.0 Rich Chat Interactions
 
 - A searchable `/` command palette with keyboard selection, actual ACP commands, Codex compaction, and BeeHelper session controls.
 - `@` references for microapps, open pages, and Codex skills; local files can be selected as explicit attachments.
@@ -60,6 +70,8 @@ npm run dev
 - Search, favorites, source editing, revision history and restoration, import, and export.
 - Page scripts, sandboxed interactive panels, cross-tab observation and actions, and microapp-private storage.
 - Page-match activation, SPA navigation handling, event registration, and resource cleanup.
+- A script market for Tampermonkey-ecosystem userscripts (ScriptCat / GreasyFork / local `.user.js`) with metadata conversion and a GM compatibility bridge.
+- A demo gallery of 13 runnable microapps, plus host capabilities that let a microapp run other microapps (`bee.apps`) or ask the connected AI to modify it (`bee.askAI`).
 - Codex App Server and ACP + MCP + Native Messaging connections, without a custom agent loop.
 - Agent-driven edits to BeeHelper-managed source; users do not need a separate code project.
 
@@ -94,6 +106,8 @@ Detailed project documents are currently in Chinese:
 - [Chat Interactions and Attachments](docs/chat-interactions.md)
 - [Local Testing and Troubleshooting](docs/local-testing.md)
 - [Microapp Format and SDK](docs/microapp-sdk.md)
+- [Tampermonkey Ecosystem and Userscript Import](docs/userscripts.md)
+- [Demo Gallery](docs/demos.md)
 - [Verification Notes](docs/verification.md)
 
 ## First Validation Scenario
@@ -104,6 +118,6 @@ Microapp authors refine business rules through conversation with AI; those rules
 
 ## Public Repository and Local Data
 
-This repository contains source code, synthetic test fixtures, and documentation. It excludes browser sessions, microapp libraries, chat history, business data, and Codex credentials. `.local/`, dependencies, build output, and test reports are not committed; build the extension and register the native connector on each new machine. The manifest's `key` is a **public key** used to keep the development extension ID stable, not a private key.
+This repository contains source code, synthetic test fixtures, and documentation. Brand assets under `public/logo/` and derived extension icons under `public/icons/` come from the company site [cyberbee.top](https://cyberbee.top). It excludes browser sessions, microapp libraries, chat history, business data, and Codex credentials. `.local/`, dependencies, build output, and test reports are not committed; build the extension and register the native connector on each new machine. The manifest's `key` is a **public key** used to keep the development extension ID stable, not a private key.
 
 Do not commit `.env`, `.npmrc`, private keys, personal browser profiles, or real business microapp exports. Before sharing a microapp, check its source for credentials, internal URLs, and business data.

@@ -11,7 +11,7 @@ const report = (type, data) => chrome.runtime.sendMessage({ channel: "bee:script
 const serialize = value => { try { return typeof value === "string" ? value : JSON.stringify(value); } catch { return String(value); } };
 const call = async (type, data) => {
   const result = await chrome.runtime.sendMessage({ channel: "bee:script", runId: settings.runId, type, data });
-  if (result && typeof result === "object" && typeof result.error === "string") throw new Error(result.error);
+  if (result && typeof result === "object" && typeof result.error === "string") throw new Error(result.error.replace(/^Error:\s*/, ""));
   return result;
 };
 const instance = { runId: settings.runId, dispose: async () => { for (const fn of cleanups.splice(0).reverse()) { try { await fn(); } catch {} } instances.delete(settings.appId); } };
@@ -52,7 +52,13 @@ const bee = {
     open: url => call("tabsOpen", { url }),
     inspect: tabId => call("tabsInspect", { tabId }),
     action: args => call("tabsAction", args)
-  }
+  },
+  apps: {
+    list: () => call("appsList"),
+    run: (id, tabId) => call("appsRun", { id, tabId }),
+    update: (id, patch) => call("appsUpdate", { id, ...(patch || {}) })
+  },
+  askAI: prompt => call("agentAsk", { prompt })
 };
 try {
   const result = await (async () => {

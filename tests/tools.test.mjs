@@ -8,6 +8,8 @@ test("能力清单与实际注册工具一一对应", () => {
   assert.ok(serverInstructions.slice(0, 512).includes("microapp_get"));
   assert.ok(serverInstructions.slice(0, 512).includes("browser_inspect"));
   assert.ok(serverInstructions.includes("run_get({runId})"));
+  assert.ok(serverInstructions.includes("userscript_search"));
+  assert.ok(capabilities.tools.includes("userscript_import"));
 });
 test("旧对话的每轮输入也包含新能力和当前选择，而非只在建会话时提示", () => {
   const first = formatTaskInput("读取源码", { selectedApp: { id: "first" } });

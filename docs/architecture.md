@@ -176,3 +176,51 @@ G1/G2 若未通过，先修连接和运行模型，不开始堆叠团队平台�
 - [R3] [外部 Agent 接入研究](research/external-agent-bridge.md)。
 - [O1] OpenAI 官方 App Server 文档：https://developers.openai.com/codex/app-server/
 - [C1] Chrome 官方 Native Messaging 文档：https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging
+
+## 7. 0.4 增补：视觉、脚本生态与宿主能力
+
+### 视觉与品牌
+
+- 调色板统一为蜜蜂黄浅色：蜜糖金 `#f2ae2b`、奶油底 `#fffdf6`、暖砂边框 `#f0e3c4`、深棕文字 `#3a2a12`，状态色保留低饱和绿/红以区分成功与失败。
+- Logo 来自公司网站 `https://cyberbee.top`（`/logo/bee-96.png`、`/logo/bee-512.png`），仓库内放在 `public/logo/`；扩展图标由 512px 图裁切留白后生成到 `public/icons/`，manifest 的 `icons` 与 `action.default_icon` 引用这些文件。
+- 新增组件使用 `--bee-*` CSS 变量，历史样式仍保留字面色值，便于后续整体换肤。
+
+### 用户脚本来源适配
+
+```text
+脚本市场 UI (ScriptMarket)
+      |  userscriptSearch / userscriptImport
+      v
+background service worker
+      |  core/script-sources.ts  ── ScriptCat API / GreasyFork API / 本地文件
+      |  core/userscripts.ts     ── 元数据解析 · 匹配规则转换 · GM 兼容层生成
+      v
+本地库候选（未安装, trigger=manual）──> 工作台 / AI 会话
+```
+
+- 网络请求只在后台执行，利用扩展 host 权限绕开网页 CORS；网页预览明确提示不可用。
+- 来源与转换分离：新增来源只需要实现“搜索 + 取源码”，转换和兼容层共用一套逻辑，避免两套行为。
+- 导入只创建候选，不执行、不安装；默认 `trigger=manual`，自动激活必须由用户显式修改并安装。
+- AI 工具 `userscript_search` / `userscript_import` 复用同一实现，能力清单 `shared/capabilities.json` 同时注册，`tests/tools.test.mjs` 校验工具清单与能力清单一致。
+
+### 宿主能力：微应用调用微应用与 AI
+
+`capability()`（后台）在原有 `storage`、`tabs` 之上增加：
+
+| 能力 | 入口 | 语义 |
+| --- | --- | --- |
+| `appsList` | `bee.apps.list()` | 返回本地库摘要，不返回源码 |
+| `appsRun` | `bee.apps.run(id, tabId?)` | 复用 `runApp`，页面脚本必须显式 tabId |
+| `appsUpdate` | `bee.apps.update(id, patch)` | 走 `operation` 的 favorite/enable，启用只对已安装项生效 |
+| `agentAsk` | `bee.askAI(prompt)` | 复用会话服务的 `chat` 流程，消息附带当前微应用引用与版本 |
+
+- 页面脚本通过 `chrome.runtime.sendMessage` 走 `onUserScriptMessage` 白名单；界面型通过 `panelCapability` 走同一 `capability()`，两条路径语义一致。
+- `agentAsk` 要求 native 连接存在，否则返回可操作错误；不伪造排队成功。
+- `appsRun` / `appsUpdate` / `agentAsk` 会写入运行日志，便于回溯是谁在什么时候调用了宿主能力。
+- 这些能力不绕过既有模型：AI 的修改仍是新 revision，运行仍需用户触发，安装仍需用户确认。
+
+### 示例画廊
+
+- `src/core/demos.ts` 内置 13 个可直接运行的示例（面板与页面脚本），覆盖自我改造、插件组合、页面增强、跨标签页、数据可视化、个性化工具等方向。
+- `tests/userscripts.test.ts` 校验每个示例：定义合法、`id` 唯一、说明完整、源码可用 `AsyncFunction` 编译；新增示例无需改测试文件。
+- 示例通过普通的 `create` 操作进入候选库，与用户自己创建的微应用没有特殊通道。

@@ -14,12 +14,12 @@ async function refresh() {
     const root = control.attachShadow({ mode: "closed" });
     const button = document.createElement("button");
     button.title = "打开 BeeHelper";
-    button.style.cssText = "all:initial;cursor:pointer;font:600 13px system-ui;color:#fff;background:#17734c;border:1px solid #105b3b;border-radius:6px;padding:9px 12px;box-shadow:0 2px 10px #0002";
+    button.style.cssText = "all:initial;cursor:pointer;font:600 13px system-ui;color:#3a2a12;background:linear-gradient(180deg,#ffc94d,#f2ae2b);border:1px solid #e0a01f;border-radius:6px;padding:9px 12px;box-shadow:0 3px 14px #8a5c0040";
     button.addEventListener("click", () => { void chrome.runtime.sendMessage({ channel: "bee:request", type: "openPanel" }); });
     root.append(button);
     control.style.cssText = "position:fixed;bottom:20px;right:20px;z-index:2147483647";
     document.documentElement.append(control);
-    Object.assign(control, { updateLabel: (value: number) => { button.textContent = `BeeHelper · ${value}`; } });
+    Object.assign(control, { updateLabel: (value: number) => { button.textContent = `🐝 BeeHelper · ${value}`; } });
   }
   (control as HTMLDivElement & { updateLabel: (value: number) => void }).updateLabel(count);
 }

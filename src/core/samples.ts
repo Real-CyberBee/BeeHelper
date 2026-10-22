@@ -31,7 +31,7 @@ export const panelSample: Definition = {
   code: `const root = bee.mount(\`
   <h2>批量文本整理</h2>
   <label for="source">原始数据</label>
-  <textarea id="source" rows="7" style="width:100%;padding:10px;border:1px solid #d8dfdb;border-radius:4px" placeholder="每行一条"></textarea>
+  <textarea id="source" rows="7" style="width:100%;padding:10px;border:1px solid #ead9b2;border-radius:6px" placeholder="每行一条"></textarea>
   <div style="display:flex;gap:8px;margin:12px 0"><button id="process">去重并整理</button><span id="count"></span></div>
   <pre id="result" style="white-space:pre-wrap"></pre>
 \`);

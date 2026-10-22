@@ -1,8 +1,28 @@
 {
-  "version": "0.3.0",
-  "tools": ["capabilities_get", "microapp_list", "microapp_get", "microapp_create", "microapp_update", "microapp_run", "microapp_install", "run_list", "run_get", "browser_tabs", "browser_inspect", "browser_action", "browser_open"],
+  "version": "0.4.0",
+  "tools": [
+    "capabilities_get",
+    "microapp_list",
+    "microapp_get",
+    "microapp_create",
+    "microapp_update",
+    "microapp_run",
+    "microapp_install",
+    "run_list",
+    "run_get",
+    "browser_tabs",
+    "browser_inspect",
+    "browser_action",
+    "browser_open",
+    "userscript_search",
+    "userscript_import"
+  ],
   "browser": {
-    "actions": ["click", "fill", "select"],
+    "actions": [
+      "click",
+      "fill",
+      "select"
+    ],
     "openShadowDOM": true,
     "closedShadowDOM": false,
     "mainDocumentOnly": true,
@@ -21,6 +41,67 @@
     "recentRuns": "run_list",
     "readRun": "run_get",
     "retainedRuns": 100,
-    "activeMeaning": "脚本已挂载监听或界面，不代表按钮逻辑已执行或业务任务完成"
+    "activeMeaning": "脚本已挂载监听或界面，不代表按钮逻辑已执行或业务任务完成",
+    "sdk": [
+      "log",
+      "output",
+      "mount",
+      "fill",
+      "on",
+      "observe",
+      "cleanup",
+      "storage",
+      "tabs",
+      "apps",
+      "askAI"
+    ],
+    "askAI": "微应用可把需求投递到当前已连接的 AI 会话，并自动附带自身引用，让 AI 直接修改它；要求用户已连接客户端"
+  },
+  "userscripts": {
+    "sources": [
+      "scriptcat",
+      "greasyfork"
+    ],
+    "sourceLabels": {
+      "scriptcat": "ScriptCat 脚本站",
+      "greasyfork": "GreasyFork"
+    },
+    "tools": {
+      "search": "userscript_search",
+      "import": "userscript_import"
+    },
+    "importBehavior": "创建未安装的 page 候选，trigger=manual，不自动运行也不自动安装",
+    "metadata": "解析 // ==UserScript== 元数据块，转换 @match/@include，@exclude 转成页面内检查",
+    "supportedGrant": [
+      "GM_info",
+      "GM_getValue",
+      "GM_setValue",
+      "GM_deleteValue",
+      "GM_listValues",
+      "GM_addValueChangeListener",
+      "GM_removeValueChangeListener",
+      "GM_addStyle",
+      "GM_addElement",
+      "GM_xmlhttpRequest",
+      "GM_notification",
+      "GM_setClipboard",
+      "GM_openInTab",
+      "GM_registerMenuCommand",
+      "GM_unregisterMenuCommand",
+      "unsafeWindow"
+    ],
+    "placeholders": [
+      "GM_getResourceText",
+      "GM_getResourceURL",
+      "GM_download",
+      "GM_cookie",
+      "GM_getTab",
+      "GM_saveTab"
+    ],
+    "limitations": [
+      "运行在浏览器隔离世界，页面自身 JS 全局对象不可见",
+      "@require 不会自动加载",
+      "不申请跨域特权：GM_xmlhttpRequest 遵循网页 CORS"
+    ]
   }
 }

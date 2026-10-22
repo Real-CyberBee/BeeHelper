@@ -1,17 +1,21 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Blocks, Search, Plus, Download, Upload, Star, Play, Square, Check, ArrowLeft, ChevronRight, Code2, List, History, MessageSquare, Settings2, ExternalLink, Trash2, RefreshCw, Send, Plug, X, Circle, FileCode2, Save, Copy, LoaderCircle, RotateCcw } from "lucide-react";
+import { Blocks, Search, Plus, Download, Upload, Star, Play, Square, Check, ArrowLeft, ChevronRight, Code2, List, History, MessageSquare, Settings2, ExternalLink, Trash2, RefreshCw, Send, Plug, X, Circle, FileCode2, Save, Copy, LoaderCircle, RotateCcw, Store, Sparkles } from "lucide-react";
 import { current, exportPackage, matchesUrl, type Database, type Definition, type Entry, type Run } from "./core/model";
 import { panelSample } from "./core/samples";
 import type { ConnectorStatus, TargetTab } from "./core/protocol";
 import { extensionMode, request, subscribe } from "./client";
 import { AgentChat } from "./components/AgentChat";
+import { DemoGallery } from "./components/DemoGallery";
+import { ScriptMarket, type ImportedScript } from "./components/ScriptMarket";
+import { demos, type Demo } from "./core/demos";
 import { activeSession, sessionBusy, type AgentProvider } from "./core/sessions";
 import "./style.css";
 
 const stamp = (time: number) => new Date(time).toLocaleString("zh-CN", { hour12: false, month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 const short = (value: string) => value.slice(0, 8);
 const stateLabels: Record<string, string> = { running: "执行中", active: "已激活", succeeded: "已完成", failed: "失败", stopped: "已停止", unknown: "结果未知" };
+const logoUrl = typeof chrome !== "undefined" && chrome.runtime?.id ? chrome.runtime.getURL("icons/bee-48.png") : "/icons/bee-48.png";
 function IconButton({ title, children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { title: string }) {
   return <button {...props} type="button" className={`icon-button ${props.className ?? ""}`} title={title} aria-label={title}>{children}</button>;
 }
@@ -63,6 +67,8 @@ function App() {
   const [pending, setPending] = useState(false);
   const [providers, setProviders] = useState<AgentProvider[]>([]);
   const [settings, setSettings] = useState(false);
+  const [gallery, setGallery] = useState(false);
+  const [market, setMarket] = useState(false);
   const [scriptsReady, setScriptsReady] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const busy = sessionBusy(db ? activeSession(db) : undefined);
@@ -137,6 +143,44 @@ function App() {
     const entry = await operation({ type: "create", definition: { ...panelSample, title: "新的微应用", description: "", code: 'bee.mount("<h2>新的微应用</h2>");' } });
     setSelectedId(entry.id); setMobileView("detail"); setScope("drafts"); setMetadata(true); setTab("code");
   }
+  async function addDemo(demo: Demo, run: boolean) {
+    if (dirty && !confirm("当前源码尚未保存，仍要添加示例吗？")) return;
+    dirtyRef.current = false;
+    try {
+      const entry = await operation({ type: "create", definition: demo.definition, source: "示例画廊" });
+      setSelectedId(entry.id); setScope("drafts"); setMobileView("detail"); setTab(run ? "result" : "code");
+      if (!run) { setGallery(false); setNotice(`已添加「${demo.definition.title}」到候选库，可以改源码，也可以让 AI 接着改`); return; }
+      const tabId = demo.definition.kind === "panel" ? undefined : targetId ?? targets.find(tab => tab.active)?.id;
+      if (demo.definition.kind === "page" && tabId === undefined) {
+        setGallery(false);
+        setNotice("已添加为候选。页面脚本需要先选择目标网页，再点「查看效果」运行");
+        return;
+      }
+      await request("run", { id: entry.id, revisionId: entry.revisionId, ...(tabId === undefined ? {} : { tabId }) });
+      setGallery(false);
+      setNotice(`「${demo.definition.title}」已启动，效果见「效果与日志」`);
+      await refresh();
+    } catch (error) {
+      setNotice(`已加入候选库，但试运行没有成功：${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  async function addAllDemos() {
+    if (dirty && !confirm("当前源码尚未保存，仍要添加全部示例吗？")) return;
+    dirtyRef.current = false;
+    let added = 0;
+    for (const demo of demos) { await operation({ type: "create", definition: demo.definition, source: "示例画廊" }); added += 1; }
+    setScope("drafts"); setGallery(false); setNotice(`已把 ${added} 个示例加入候选库，挑一个开始改吧`);
+  }
+  async function importedScript(result: ImportedScript) {
+    await refresh();
+    if (dirty) {
+      setNotice(`已把「${current(result.entry).definition.title}」导入为候选；当前源码尚未保存，所以没有切换工作台`);
+      return;
+    }
+    setSelectedId(result.entry.id); setScope("drafts"); setMobileView("detail"); setTab("code");
+    const extra = result.notes[0] ? `；${result.notes[0]}` : result.requires.length ? `；${result.requires.length} 个 @require 未自动加载` : "";
+    setNotice(`已把「${current(result.entry).definition.title}」导入为候选${extra}。默认手动运行，确认行为后再安装或设为自动激活`);
+  }
   async function connectAgent() {
     const status = await request<ConnectorStatus>("connect", { sessionId: db?.activeSessionId }); setConnector(status); await refresh();
   }
@@ -155,7 +199,7 @@ function App() {
   const candidateCount = db.entries.length - installedCount;
   return <div className={`shell view-${mobileView}`}>
     <header className="topbar">
-      <div className="brand"><span className="brand-mark"><Blocks size={20} /></span><strong>BeeHelper</strong><span className="version">LOCAL</span></div>
+      <div className="brand"><span className="brand-mark"><img src={logoUrl} alt="" /></span><strong>BeeHelper</strong><span className="version">BETA</span></div>
       <div className="top-actions">
         <button className={`connection ${connector.ready ? "connected" : ""}`} onClick={() => { setSettings(true); }}><span className="status-dot" /> <span>{providerName} {connector.ready ? "已连接" : "未连接"}</span></button>
         {extensionMode && <IconButton title="在标签页打开" onClick={() => { void chrome.tabs.create({ url: chrome.runtime.getURL("index.html") }); }}><ExternalLink size={16} /></IconButton>}
@@ -169,10 +213,19 @@ function App() {
       <button className={scope === "installed" ? "nav-item selected" : "nav-item"} onClick={() => { setScope("installed"); setMobileView("library"); }}><Check size={17} /><span>已安装</span><small>{installedCount}</small></button>
       <button className={scope === "drafts" ? "nav-item selected" : "nav-item"} onClick={() => { setScope("drafts"); setMobileView("library"); }}><FileCode2 size={17} /><span>候选</span><small>{candidateCount}</small></button>
       <button className={scope === "favorites" ? "nav-item selected" : "nav-item"} onClick={() => { setScope("favorites"); setMobileView("library"); }}><Star size={17} /><span>收藏</span></button>
+      <div className="nav-label" style={{ paddingTop: 18 }}>发现</div>
+      <button className="nav-item" onClick={() => setGallery(true)}><Sparkles size={17} /><span>示例画廊</span><small>{demos.length}</small></button>
+      <button className="nav-item" onClick={() => setMarket(true)}><Store size={17} /><span>脚本市场</span></button>
       <div className="nav-bottom"><span className="status-dot" /><span>本地工作空间</span></div>
     </nav>
     <section className="library">
-      <div className="section-heading"><h1>微应用库</h1><div><IconButton title="导入微应用" onClick={() => fileInput.current?.click()}><Upload size={16} /></IconButton><IconButton title="新建微应用" onClick={() => { void act(createApp); }}><Plus size={18} /></IconButton></div></div>
+      <div className="section-heading"><h1>微应用库</h1><div><IconButton title="脚本市场" onClick={() => setMarket(true)}><Store size={16} /></IconButton><IconButton title="导入微应用" onClick={() => fileInput.current?.click()}><Upload size={16} /></IconButton><IconButton title="新建微应用" onClick={() => { void act(createApp); }}><Plus size={18} /></IconButton></div></div>
+      <button className="library-hero" onClick={() => setGallery(true)}>
+        <em>WOW</em>
+        <strong>{demos.length} 个能直接跑起来的示例</strong>
+        <span>AI 改造自己 · 表格变图表 · 网页批注…</span>
+        <img src={logoUrl} alt="" />
+      </button>
       <div className="search-box"><Search size={15} /><input aria-label="搜索微应用" placeholder="搜索微应用" value={search} onChange={event => setSearch(event.target.value)} /></div>
       <div className="mobile-scopes">{[["all", "全部"], ["installed", "已安装"], ["drafts", "候选"], ["favorites", "收藏"]].map(([value, label]) => <button key={value} className={scope === value ? "active" : ""} onClick={() => setScope(value)}>{label}</button>)}</div>
       <div className="list-caption"><span>{scope === "installed" ? "已安装" : scope === "drafts" ? "候选微应用" : scope === "favorites" ? "收藏" : "全部微应用"}</span><span>{entries.length}</span></div>
@@ -237,9 +290,16 @@ function App() {
       dirtyRef.current = false;
       void act(async () => { if (file.size > 5_000_000) throw new Error("微应用包超过 5 MB"); const entry = await request<Entry>("import", { text: await file.text() }); await refresh(); setSelectedId(entry.id); setScope("drafts"); setMobileView("detail"); });
     }} />
+    {gallery && <DemoGallery busy={pending} addedTitles={(db.entries ?? []).map(entry => current(entry).definition.title)} onClose={() => setGallery(false)} onAdd={(demo, run) => act(() => addDemo(demo, run)).then(() => {})} onAddAll={() => act(addAllDemos).then(() => {})} />}
+    {market && <ScriptMarket onClose={() => setMarket(false)} onImported={result => { void importedScript(result); }} onError={setNotice} />}
     {settings && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setSettings(false); }}>
       <section className="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <div className="modal-heading"><h2 id="settings-title">本地连接</h2><IconButton title="关闭设置" onClick={() => setSettings(false)}><X size={18} /></IconButton></div>
+        <div className="about-brand">
+          <img src={logoUrl} alt="" />
+          <div><strong>BeeHelper <span className="version">0.4.0</span></strong><span>赛博蜜蜂 · 让 AI 连接大千世界</span></div>
+          {extensionMode && <button type="button" onClick={() => { void chrome.tabs.create({ url: "https://cyberbee.top" }); }}>cyberbee.top<ExternalLink size={11} /></button>}
+        </div>
         <div className="setting-row"><span>运行环境</span><strong>{extensionMode ? "Chrome 扩展" : "网页预览"}</strong></div>
         <div className="setting-row"><span>扩展标识</span><code>{extensionMode ? chrome.runtime.id : "—"}</code></div>
         <div className="setting-row"><span>当前会话</span><strong>{providerName} · {connector.version ?? (connector.ready ? "已就绪" : "未连接")}</strong></div>

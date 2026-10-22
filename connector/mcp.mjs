@@ -27,8 +27,8 @@ function invoke(name, args) {
   });
 }
 for (const [name, description, inputSchema] of tools) {
-  const readOnlyHint = ["capabilities_get", "microapp_list", "microapp_get", "run_list", "run_get", "browser_tabs", "browser_inspect"].includes(name);
-  server.registerTool(name, { description, inputSchema, annotations: { readOnlyHint, destructiveHint: ["microapp_run", "microapp_install", "browser_action"].includes(name), openWorldHint: name.startsWith("browser_") || ["microapp_run", "microapp_install"].includes(name) } }, async args => {
+  const readOnlyHint = ["capabilities_get", "microapp_list", "microapp_get", "run_list", "run_get", "browser_tabs", "browser_inspect", "userscript_search"].includes(name);
+  server.registerTool(name, { description, inputSchema, annotations: { readOnlyHint, destructiveHint: ["microapp_run", "microapp_install", "browser_action", "userscript_import"].includes(name), openWorldHint: name.startsWith("browser_") || ["microapp_run", "microapp_install", "userscript_search", "userscript_import"].includes(name) } }, async args => {
     try {
       const result = await invoke(name, args);
       return { content: [{ type: "text", text: JSON.stringify(result ?? null) }] };

@@ -7,6 +7,7 @@ import { browserAction, inspectPage } from "./browser-tools";
 import capabilities from "../shared/capabilities.json";
 import { buildAgentContext, getRun, listRuns } from "./core/agent-context";
 import { requireSession, migrateSessions, syncChatProjection, applySessionEvent } from "./core/sessions";
+import { importUserscript, searchUserscripts, type ScriptSort, type ScriptSource } from "./core/script-sources";
 import { AgentSessionService } from "./agents/session-service";
 
 let db: Database;
@@ -143,7 +144,43 @@ async function capability(appId: string, type: string, data: any = {}): Promise<
     if (!["http:", "https:"].includes(url.protocol)) throw new Error("仅支持 HTTP/HTTPS 网页");
     const tab = await chrome.tabs.create({ url: url.href }); return { id: tab.id, url: tab.url };
   }
+  if (type === "appsList") return db.entries.map(entry => {
+    const definition = current(entry).definition;
+    return { id: entry.id, title: definition.title, description: definition.description, kind: definition.kind, installed: entry.installed, enabled: entry.enabled, favorite: entry.favorite, revisionId: entry.revisionId, revisionCount: entry.revisions.length };
+  });
+  if (type === "appsRun") {
+    const entry = findEntry(db, String(data.id ?? ""));
+    if (entry.id === appId) throw new Error("微应用不能运行自身；请直接使用当前实例");
+    const tabId = data.tabId === undefined || data.tabId === null ? undefined : Number(data.tabId);
+    if (current(entry).definition.kind === "page" && (tabId === undefined || !Number.isInteger(tabId))) throw new Error("页面脚本需要指定目标标签页 tabId");
+    return runApp(entry.id, entry.revisionId, current(entry).definition.kind === "page" ? tabId : undefined, false);
+  }
+  if (type === "appsUpdate") {
+    const entry = findEntry(db, String(data.id ?? ""));
+    if (typeof data.favorite === "boolean") await handle({ type: "operation", operation: { type: "favorite", id: entry.id, value: data.favorite } });
+    if (typeof data.enabled === "boolean" && entry.installed) await handle({ type: "operation", operation: { type: "enable", id: entry.id, value: data.enabled } });
+    return { id: entry.id, favorite: data.favorite, enabled: data.enabled };
+  }
+  if (type === "agentAsk") return askAgent(appId, data);
   throw new Error("未知微应用能力");
+}
+
+/** 微应用主动呼叫 AI：把需求投递到当前会话，并带上自己作为引用，让 AI 能直接改它。 */
+async function askAgent(appId: string, data: any) {
+  const text = String(data?.prompt ?? "").trim().slice(0, 4000);
+  if (!text) throw new Error("请说明想让 AI 做什么");
+  if (!port) throw new Error("请先在 BeeHelper 侧边栏连接 AI 客户端（Codex / Claude Code / DSH），再让微应用呼叫 AI");
+  const session = requireSession(db);
+  if (session.archived) throw new Error("当前会话已归档，请先恢复归档会话");
+  const entry = findEntry(db, appId);
+  const revision = current(entry);
+  const clientId = session.executionClientId ?? uiClients.values().next().value;
+  await agentSessions.handle({
+    type: "chat", sessionId: session.id, text, mode: "queue", clientId,
+    references: [{ kind: "microapp", id: entry.id, label: revision.definition.title, revisionId: revision.id }],
+    context: { selectedAppId: entry.id, revisionId: revision.id, source: "microapp" }
+  });
+  return { sessionId: session.id, queued: true, title: revision.definition.title };
 }
 async function invokeTool(name: string, args: any, scope?: { sessionId?: string; connectionId?: string }): Promise<unknown> {
   await storeReady;
@@ -154,7 +191,7 @@ async function invokeTool(name: string, args: any, scope?: { sessionId?: string;
   if (name === "capabilities_get") {
     let userScriptsAvailable = true;
     try { await availableScripts(); } catch { userScriptsAvailable = false; }
-    return { ...capabilities, userScriptsAvailable };
+    return { ...capabilities, userScriptsAvailable, userscripts: { sources: ["scriptcat", "greasyfork"], tools: ["userscript_search", "userscript_import"], note: "网络可达性取决于用户环境；ScriptCat 在国内通常可直连，GreasyFork 可能被阻断" } };
   }
   if (name === "microapp_list") return db.entries.map(entry => ({ id: entry.id, installed: entry.installed, revisionId: entry.revisionId, ...current(entry).definition }));
   if (name === "microapp_get") return findEntry(db, args.id);
@@ -175,6 +212,31 @@ async function invokeTool(name: string, args: any, scope?: { sessionId?: string;
     const url = new URL(args.url);
     if (!["http:", "https:"].includes(url.protocol)) throw new Error("仅支持 HTTP/HTTPS 网页");
     const tab = await chrome.tabs.create({ url: url.href }); return { tabId: tab.id, url: tab.url };
+  }
+  if (name === "userscript_search") {
+    const source: ScriptSource = args.source === "greasyfork" ? "greasyfork" : "scriptcat";
+    const sort: ScriptSort = ["popular", "trending", "recent", "score"].includes(args.sort) ? args.sort : "popular";
+    const result = await searchUserscripts(source, { query: args.query, sort, limit: args.limit });
+    return { source: result.source, cached: Boolean(result.cached), items: result.items.map(item => ({
+      source: item.source, id: item.id, name: item.name, description: item.description.slice(0, 240),
+      author: item.author, version: item.version, totalInstalls: item.totalInstalls, dailyInstalls: item.dailyInstalls,
+      score: item.score, pageUrl: item.pageUrl, tags: item.tags
+    })) };
+  }
+  if (name === "userscript_import") {
+    const source: ScriptSource = args.source === "greasyfork" ? "greasyfork" : "scriptcat";
+    const converted = await importUserscript(source, String(args.id ?? ""));
+    const entry = await mutate(database => {
+      const created = applyOperation(database, { type: "create", definition: converted.definition, source: `${source === "scriptcat" ? "ScriptCat" : "GreasyFork"} 导入` });
+      Object.assign(database, created.db);
+      return created.entry!;
+    });
+    return {
+      id: entry.id, revisionId: entry.revisionId, installed: false,
+      title: converted.definition.title, kind: converted.definition.kind, matches: converted.definition.matches, trigger: converted.definition.trigger,
+      notes: converted.notes, requires: converted.requires, grants: converted.grants,
+      message: "已导入为未安装候选；默认手动运行。用 microapp_get 读取源码，确认后在用户要求时安装。"
+    };
   }
   throw new Error(`未知工具：${name}`);
 }
@@ -309,6 +371,21 @@ async function handle(message: any, sender?: chrome.runtime.MessageSender): Prom
       if (!run || run.tabId !== undefined || ["stopped", "unknown", "failed"].includes(run.status)) throw new Error("界面实例已失效");
       return capability(run.appId, message.capability, message.args);
     }
+    case "userscriptSearch": {
+      const source: ScriptSource = message.source === "greasyfork" ? "greasyfork" : "scriptcat";
+      const sort: ScriptSort = ["popular", "trending", "recent", "score"].includes(message.sort) ? message.sort : "popular";
+      return searchUserscripts(source, { query: message.query, sort, limit: message.limit });
+    }
+    case "userscriptImport": {
+      const source: ScriptSource = message.source === "greasyfork" ? "greasyfork" : "scriptcat";
+      const converted = await importUserscript(source, String(message.id ?? ""));
+      const entry = await mutate(database => {
+        const created = applyOperation(database, { type: "create", definition: converted.definition, source: `${source === "scriptcat" ? "ScriptCat" : "GreasyFork"} 导入` });
+        Object.assign(database, created.db);
+        return created.entry!;
+      });
+      return { entry, notes: converted.notes, requires: converted.requires, grants: converted.grants, author: converted.hit?.author, version: converted.hit?.version, pageUrl: converted.hit?.pageUrl };
+    }
     case "pageReady": if (sender?.tab?.id !== undefined) await reconcileTab(sender.tab.id, message.url); return true;
     case "openPanel": if (sender?.tab?.id !== undefined) await chrome.sidePanel.open({ tabId: sender.tab.id }); return true;
     default: throw new Error("未知操作");
@@ -348,7 +425,10 @@ chrome.runtime.onUserScriptMessage.addListener((message, sender, reply) => {
   if (!active) { reply({ error: "页面实例已失效" }); return; }
   void (async () => {
     const data = message.data ?? {};
-    if (["storageGet", "storageSet", "tabsList", "tabsOpen", "tabsInspect", "tabsAction"].includes(message.type)) return capability(active.appId, message.type, data);
+    if (["storageGet", "storageSet", "tabsList", "tabsOpen", "tabsInspect", "tabsAction", "appsList", "appsRun", "appsUpdate", "agentAsk"].includes(message.type)) {
+      if (["agentAsk", "appsRun", "appsUpdate"].includes(message.type)) await logRun(active.runId, "info", `微应用调用的宿主能力：${message.type}`);
+      return capability(active.appId, message.type, data);
+    }
     if (message.type === "complete") await logRun(active.runId, "result", data.result ?? "执行完成", data.resources ? "active" : "succeeded");
     else if (message.type === "error") await logRun(active.runId, "error", data.text, "failed");
     else await logRun(active.runId, data.level ?? message.type ?? "info", String(data.text ?? ""));

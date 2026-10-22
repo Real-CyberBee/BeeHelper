@@ -96,3 +96,24 @@
 - 真实页面试用会产生实际业务效果；停止只清理已登记资源，不回滚外部提交。
 
 截图保存在项目 `.local/screenshots/`；详细复测命令与运行条件见[本机测试与排障](local-testing.md)。
+
+## 0.4.0 增补验证（本次环境：Linux）
+
+| 命令或验证项 | 结果 |
+| --- | --- |
+| `npm run check` | 通过 |
+| `npm test` | 59 项通过（新增用户脚本解析/转换/示例校验 6 项） |
+| `npm run build` | 通过，`dist/` 含图标、Logo、favicon、demo 页 |
+| 真实扩展加载与 `userscriptSearch` | 通过：后台直连 ScriptCat 返回热门脚本，不受网页 CORS 限制 |
+| 真实扩展 `userscriptImport` | 通过：脚本转换为未安装候选，源码可编译 |
+| 脚本市场 UI | 通过：真实来源数据 20 条，来源/排序/搜索/本地导入入口可用 |
+| 示例画廊 | 通过：13 个示例全部可添加；面板示例在侧边栏沙箱运行 |
+| 页面示例（元素探针、批注笔） | 通过：在本地测试页真实挂载 Shadow DOM UI 与 canvas |
+| `bee.apps.list/update` | 通过：网页预览与扩展中均可列出并切换收藏 |
+| `bee.askAI` 失败路径 | 通过：未连接客户端时返回可读错误，不伪装成功 |
+| 移动端 390×844 | 通过：库、会话与底部导航无横向溢出 |
+| `npm run test:e2e` | 未执行：现有 E2E 的 `beforeAll` 依赖 macOS Chrome 配置与 Native Messaging 路径，本环境为 Linux；未用伪造结果替代 |
+
+GreasyFork 在本环境网络下不可达（超时），已验证错误提示与离线 `.user.js` 导入路径；ScriptCat 可正常搜索与导入。
+
+本环境未安装 Native Messaging 连接器，因此 `npm run doctor` 与真实模型会话未验证；`bee.askAI` 的排队与投递逻辑复用既有会话服务单元测试。

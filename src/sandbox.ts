@@ -20,7 +20,7 @@ window.addEventListener("message", event => {
   if (event.source !== parent || event.data?.channel !== "bee:preview") return;
   if (event.data.type === "rpcResult" && event.data.token === token) {
     const call = calls.get(event.data.id);
-    if (call) { clearTimeout(call.timeout); calls.delete(event.data.id); event.data.error ? call.reject(new Error(event.data.error)) : call.resolve(event.data.result); }
+    if (call) { clearTimeout(call.timeout); calls.delete(event.data.id); event.data.error ? call.reject(new Error(String(event.data.error).replace(/^Error:\s*/, ""))) : call.resolve(event.data.result); }
     return;
   }
   if (event.data.type === "stop" && event.data.token === token) { dispose(); return; }
@@ -41,6 +41,12 @@ window.addEventListener("message", event => {
       const observer = new MutationObserver(callback); observer.observe(target, options ?? { childList: true, subtree: true }); cleanups.push(() => observer.disconnect()); return observer;
     },
     storage: { get: (key: string) => rpc("get", { key }), set: (key: string, value: unknown) => rpc("set", { key, value }) },
+    apps: {
+      list: () => rpc("capability", { capability: "appsList" }),
+      run: (id: string, tabId?: number) => rpc("capability", { capability: "appsRun", args: { id, tabId } }),
+      update: (id: string, patch: { favorite?: boolean; enabled?: boolean }) => rpc("capability", { capability: "appsUpdate", args: { id, ...patch } })
+    },
+    askAI: (prompt: string) => rpc("capability", { capability: "agentAsk", args: { prompt } }),
     tabs: {
       list: () => rpc("capability", { capability: "tabsList" }),
       open: (url: string) => rpc("capability", { capability: "tabsOpen", args: { url } }),
