@@ -1,14 +1,14 @@
 # 首次使用与 macOS 预览安装包
 
-适用版本：0.5.0。当前提供 macOS 图形安装器构建，已在 arm64 环境验证；Windows/Linux 图形安装包与 macOS x64 实机验收仍在 TODO 中。
+适用版本：0.5.1。当前提供 macOS 图形安装器，编译目标为 macOS 13+，已在当前 arm64 环境验证；macOS 13/x64 实机验收与 Windows/Linux 图形安装包仍在 TODO 中。
 
 ## 普通用户安装
 
-1. 从项目维护者取得与 CPU 架构匹配的 DMG。打开后双击 **BeeHelper Installer.app**，选择“安装 / 修复”。安装器包含 Node 与连接器依赖，不需要终端、npm、源码仓库或管理员权限。
+1. 从项目维护者取得与 CPU 架构匹配的 DMG。打开后双击 **BeeHelper Installer.app**，选择“安装 / 修复”。安装器使用 macOS 自带的 JavaScriptCore、Foundation 和 CryptoKit，不包含 Node、npm 或 node_modules，不需要额外安装运行时、终端、源码仓库或管理员权限。
 2. 安装完成后 Finder 会打开 `extension` 文件夹。在 Chrome 扩展页面开启开发者模式，点“加载已解压的扩展”，选择该文件夹。当前尚未上架扩展商店，这是预览版的浏览器安装步骤。
 3. 在 BeeHelper 扩展详情启用“允许用户脚本”。打开工具栏 BeeHelper 图标，首次使用向导会检查环境；也可从右上角“设置”重新打开。
 4. 不连接 AI 也可以运行已有微应用。在示例画廊添加并试用“批量文本整理”，输入几行重复文本，点击“去重并整理”，确认结果。
-5. 如需 AI 创作，先安装并登录一个受支持的本地 Agent。向导中“重新检测”，选择客户端并连接。连接器就绪不等于 Agent 已安装、已登录或模型有额度；这些状态分别处理。
+5. 如需 AI 创作，先安装并登录一个受支持的本地 Agent。向导中“重新检测”，选择客户端并连接。连接器就绪不等于 Agent 已安装、已登录或模型有额度；这些状态分别处理。轻量包不携带 Claude 引擎与 ACP 适配器，Claude Code 需要独立可用的 `claude-agent-acp`；可通过“客户端检测详情”查看缺失项，也支持显式 `BEEHELPER_CLAUDE_ACP` 路径。若第三方 Agent 本身是 JavaScript 入口，其运行时由该 Agent 提供，BeeHelper 不自动下载 Node 或 SDK。
 
 **公开分发状态：**当前本地生成的是临时签名预览包，尚未完成 Developer ID 签名和 Apple 公证。带下载隔离标记的机器可能拒绝启动，不能将本机安装验证视为普通用户可无提示安装。正式对外分发前，维护者应完成签名、公证和干净机器测试；本文不建议用户关闭系统保护。
 
@@ -30,7 +30,7 @@
 
 再次运行同一安装器，选择“安装 / 修复”，将文件复制到稳定的每用户目录并切换完整版本。连接器入口不再引用下载目录、源码目录或系统 Node。升级或修复前请结束在途任务；此功能是人工运行安装器的修复，不是自动更新。
 
-安装器选择“卸载连接器”会移除本安装器管理的运行时、扩展文件和仍指向它的宿主清单。浏览器扩展还需在浏览器界面移除；如仅卸载连接器但继续保留扩展，应先为扩展选择其他长期目录。卸载不删除浏览器内的微应用、会话、Agent 登录及工作目录。
+安装器选择“卸载连接器”会移除本安装器管理的原生程序、连接脚本、扩展文件和仍指向它的宿主清单。浏览器扩展还需在浏览器界面移除；如仅卸载连接器但继续保留扩展，应先为扩展选择其他长期目录。卸载不删除浏览器内的微应用、会话、Agent 登录及工作目录。
 
 连接器缺失或未发现 Agent 时，从向导打开“下载与安装说明”，完成安装后点“重新检测”。可导出脱敏诊断给维护者，导出仅含版本与能力状态，不包含页面地址、机器路径、源码、会话或凭据。
 
@@ -43,11 +43,26 @@ npm ci
 npm run build:installer
 ```
 
-产物位于 `.local/installers/BeeHelper-0.5.0-macOS-<arch>.dmg`，同时生成 SHA256 文件。使用当前运行 Node 的平台与 CPU 架构；需要在对应架构上构建。生产依赖通过锁文件单独安装，Node 的对应版本许可证随包保留，不复制开发者的 `.local`、Agent 配置或凭据。
+产物位于 `.local/installers/BeeHelper-0.5.1-macOS-<arch>.dmg`，同时生成 SHA256 文件。构建机需要 Node/npm 和 Xcode Command Line Tools（Swift 编译器）；这些只是开发工具，不进入安装包。原生程序按当前架构编译并剥离调试符号，esbuild 只编入实际使用的连接代码，并保留第三方许可证。扩展文件照常打包，不复制开发者的 `.local`、Agent 配置或凭据。
+
+体积门槛为完整 DMG 不超过 **5,000,000 字节**，超限构建失败；本次 arm64 产物约 **0.94 MB**。该体积包含扩展、连接器与 GUI 安装器，不通过首次启动下载大运行时来转移体积。源码模式的 Node 连接器继续保留用于开发与其它平台验证。
+
+原生独立构建与回归：
+
+```sh
+npm run build:native
+npm test
+BEEHELPER_NATIVE_CONNECTOR=1 npm run test:e2e
+npm run test:installer
+```
+
+原生协议测试中的合成 Agent 使用开发机 Node 作为外部客户端夹具，不是连接器的运行依赖。安装器烟测在临时用户目录执行原生安装、Native Messaging/ACP 握手、修复和卸载，不修改个人安装。
+
+覆盖 0.5.0 时，旧版本目录仍作为历史保留，可能包含旧 Node/SDK 文件；这不属于新包。若需回收这些旧文件，可从图形安装器卸载连接器后重新安装，浏览器内应用与会话保留，随后重新加载扩展。
 
 如维护者已配置签名证书与 notarytool keychain profile，可设置 `BEEHELPER_SIGN_IDENTITY` 和 `BEEHELPER_NOTARY_PROFILE` 后构建。构建脚本会签名、提交公证并 staple；没有这些配置时只产出本地临时签名包，终端元数据中 `signed` 和 `notarized` 为 false。
 
-GitHub Actions 的 Verify BeeHelper 工作流默认执行类型、单元、构建和无模型浏览器回归；手动启动 workflow_dispatch 时额外构建 macOS 预览安装器并上传构建产物，不自动创建公开 Release。CI 架构取决于运行器，不替代其他架构实机验收。
+GitHub Actions 的 Verify BeeHelper 工作流默认执行类型、单元、构建和无模型浏览器回归；手动启动 workflow_dispatch 时额外执行原生协议测试、构建 macOS 预览安装器并上传构建产物，不自动创建公开 Release。CI 架构取决于运行器，不替代其他架构实机验收。
 
 ## 内置微应用约定
 

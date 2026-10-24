@@ -1,4 +1,3 @@
-import { Context } from "cordis";
 import { access, readdir, readFile, realpath } from "node:fs/promises";
 import { constants } from "node:fs";
 import { homedir } from "node:os";
@@ -26,21 +25,17 @@ export async function executableLaunch(file, args = []) {
   const resolved = await realpath(file);
   if (/\.[cm]?js$/.test(resolved)) {
     const siblingNode = path.join(path.dirname(file), "node");
-    return { command: await exists(siblingNode) ? siblingNode : process.execPath, args: [file, ...args] };
+    const runtime = await exists(siblingNode) ? siblingNode : process.versions?.node ? process.execPath : await findExecutable("node");
+    if (!runtime) throw new Error("此第三方 Agent 的 JavaScript 入口需要其自己的 Node 运行时");
+    return { command: runtime, args: [file, ...args] };
   }
   return { command: file, args };
 }
 export function createProviderRegistry(plugins) {
-  const context = new Context();
-  const providers = new Map();
   if (new Set(plugins.map(plugin => plugin.id)).size !== plugins.length) throw new Error("Agent 插件 ID 重复");
-  for (const plugin of plugins) context.plugin(ctx => {
-    if (providers.has(plugin.id)) throw new Error(`Agent 插件重复：${plugin.id}`);
-    providers.set(plugin.id, plugin);
-    ctx.effect(() => () => providers.delete(plugin.id));
-  });
+  const providers = new Map(plugins.map(plugin => [plugin.id, plugin]));
   return {
-    ready: context.fiber.await(),
+    ready: Promise.resolve(),
     catalog: () => [...providers.values()].map(({ id, name, available, installed, reason, protocol }) => ({ id, name, available, installed, reason, protocol })),
     get(id) {
       const plugin = providers.get(id);
@@ -48,18 +43,21 @@ export function createProviderRegistry(plugins) {
       if (!plugin.available) throw new Error(plugin.reason ?? "Agent 不可用");
       return plugin;
     },
-    close: () => context.fiber.dispose()
+    close: async () => { providers.clear(); }
   };
 }
+
 export async function discoverProviders() {
   const codex = await findExecutable("codex", process.env.BEEHELPER_CODEX);
   const claude = await findExecutable("claude", process.env.BEEHELPER_CLAUDE);
   const dsh = await findExecutable("dsh", process.env.BEEHELPER_DSH);
   const codebuddy = await findExecutable("codebuddy", process.env.BEEHELPER_CODEBUDDY);
-  const claudeEntry = path.join(root, "node_modules/@agentclientprotocol/claude-agent-acp/dist/index.js");
+  const localClaudeEntry = path.join(root, "node_modules/@agentclientprotocol/claude-agent-acp/dist/index.js");
+  const claudeEntry = process.env.BEEHELPER_CLAUDE_ACP ? await findExecutable("claude-agent-acp", process.env.BEEHELPER_CLAUDE_ACP)
+    : process.versions?.node && await exists(localClaudeEntry) ? localClaudeEntry : await findExecutable("claude-agent-acp");
   const plugins = [
     { id: "codex", name: "Codex", protocol: "codex-app-server", installed: Boolean(codex), available: Boolean(codex), reason: codex ? undefined : "未找到 Codex CLI", create: async options => createCodexAdapter({ ...options, launch: await executableLaunch(codex) }) },
-    { id: "claude", name: "Claude Code", protocol: "acp", installed: Boolean(claude), available: Boolean(claude) && await exists(claudeEntry), reason: claude ? undefined : "未找到 Claude Code CLI", create: options => createAcpAdapter({ ...options, launch: { command: process.execPath, args: [claudeEntry], env: { CLAUDE_CODE_EXECUTABLE: claude } } }) },
+    { id: "claude", name: "Claude Code", protocol: "acp", installed: Boolean(claude), available: Boolean(claude) && Boolean(claudeEntry), reason: !claude ? "未找到 Claude Code CLI" : !claudeEntry ? "需要独立 Claude ACP 适配器；轻量安装包不捆绑第三方运行引擎" : undefined, create: async options => createAcpAdapter({ ...options, launch: { ...await executableLaunch(claudeEntry), env: { CLAUDE_CODE_EXECUTABLE: claude } } }) },
     { id: "dsh", name: "DeepSeek Harness", protocol: "acp", installed: Boolean(dsh), available: Boolean(dsh), reason: dsh ? undefined : "未找到 dsh，可通过 BEEHELPER_DSH 指定路径", create: async options => createAcpAdapter({ ...options, launch: await executableLaunch(dsh, ["--profile", "acp"]) }) },
     { id: "codebuddy", name: "CodeBuddy Code", protocol: "acp", installed: Boolean(codebuddy), available: Boolean(codebuddy), reason: "未找到独立 CodeBuddy CLI；WorkBuddy 桌面安装不等于可用 CLI", create: async options => createAcpAdapter({ ...options, launch: await executableLaunch(codebuddy, ["--acp"]) }) },
     { id: "workbuddy", name: "WorkBuddy", protocol: "open-api", installed: await exists("/Applications/WorkBuddy.app"), available: false, reason: "桌面登录不提供公开 stdio 会话控制。需官方开放平台授权及独立 API 适配；不会读取桌面凭据。" }

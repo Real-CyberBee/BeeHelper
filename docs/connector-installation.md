@@ -1,5 +1,7 @@
 # 连接器安装方式调研：如何避免普通用户运行 `npm run setup:native`
 
+> 0.5.1 状态更新：macOS 已改用 Swift + 系统 JavaScriptCore，完整 arm64 DMG 约 0.94 MB，不捆绑 Node 或生产依赖目录。实际操作见[首次使用说明](getting-started.md)。下文保留早期安装选型与尚未交付的其它平台建议，不能视作当前打包实现。
+
 日期：2026-10-24。范围：Chrome / Chromium（MV3 扩展），macOS / Linux / Windows。
 
 ## 结论（TL;DR）

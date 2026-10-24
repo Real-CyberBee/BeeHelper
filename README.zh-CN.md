@@ -4,6 +4,12 @@
 
 浏览器侧边栏 AI 微应用工作台。借鉴 Tampermonkey 的脚本自由度，以浏览器环境下的 everything-is-a-plugin 为设计理念，通过本地插件连接 Codex、Claude Code 和 DeepSeek Harness。
 
+## 0.5.1 更新
+
+- 当前 arm64 完整安装包约 0.94 MB，包含扩展；构建时强制 DMG 不超过 5,000,000 字节。
+- 使用 macOS 自带 JavaScriptCore/Foundation/CryptoKit，不捆绑 Node、node_modules，也不在启动后下载运行时。编译目标为 macOS 13+，旧系统及 x64 实机验收仍待完成。
+- 保留会话、附件与 Agent 通路；Claude Code 使用独立 ACP 适配器，向导明确展示缺失条件。
+
 ## 0.5.0 更新
 
 - macOS 图形预览安装器：内置 Node、稳定目录注册、修复与卸载。见[首次使用与安装说明](docs/getting-started.md)。Developer ID 签名、公证及干净机器分发验收仍待完成。

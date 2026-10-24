@@ -28,7 +28,7 @@ await mkdir(workspace, { recursive: true, mode: 0o700 });
 const attachments = new AttachmentStore(path.join(workspace, "attachments"));
 const sessions = new SessionHost({
   registry: await discoverProviders(), workspace, version: capabilities.version, attachments,
-  mcpPath: fileURLToPath(new URL("./mcp.mjs", import.meta.url)),
+  mcpPath: process.versions?.node ? fileURLToPath(new URL("./mcp.mjs", import.meta.url)) : "--mcp",
   emit: event => emit({ kind: "event", event })
 });
 sessions.socketPath = path.join(directory, "tools.sock");

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "BeeHelper",
   "description": "AI 可微调的浏览器微应用工作台",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "minimum_chrome_version": "138",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAubZ3eIEbefdmmMPzdqr98tc7ebW2ac5pe4SRVwgE4fZDcVj76UiHWcJWA9mVXUzOcpv60OF7g3x/sJb4snF5rfzNIx0SiSxlMkaCbamatNyvF27qoswRYtJhwq07IkVjqoVxYJMXDlF/7fY/nPq7dUfjVPvXkRbEfGv7IBRruYu2jIlRj8PfNNakuhk+SFy/uY8jkhtrNW8b7g8+fpCkkFjMsRBLoEVu1KE84oAqVwygia4XTdLIMRsZmFb+8/nNmz2kmpkl2TQXKcYPB6KJAmRiEcvRzUQOGplXQXgZV8gn8lKWdT5fU24gPlXDXUFxDwwg09nBC0bE7BBNrirvkQIDAQAB",
   "permissions": [

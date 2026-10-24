@@ -4,6 +4,12 @@ English | [简体中文](README.zh-CN.md)
 
 An AI microapp workbench in the browser sidebar. Inspired by Tampermonkey's scripting freedom and the everything-is-a-plugin architecture, BeeHelper lets you create, preview, install, and refine browser microapps through external coding agents. Local adapters connect Codex, Claude Code, and DeepSeek Harness.
 
+## What’s New in 0.5.1
+
+- A macOS installer under 1 MB in the current arm64 build, including the extension. The build fails if the complete DMG exceeds 5,000,000 bytes.
+- Uses macOS system JavaScriptCore/Foundation/CryptoKit; no bundled Node, node_modules, or background runtime download. macOS 13+ is the build target; older-system and x64 acceptance remain pending.
+- Reuses session, attachment and Agent logic. Claude Code requires an independently installed ACP adapter, with missing prerequisites shown in the setup diagnostics.
+
 ## What’s New in 0.5.0
 
 - A self-contained macOS preview installer with a bundled Node runtime, stable connector registration, repair and uninstall. See [first-use and installation instructions](docs/getting-started.md) (Chinese). Developer ID signing, notarization and clean-machine distribution acceptance remain pending.

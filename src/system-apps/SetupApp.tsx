@@ -41,6 +41,7 @@ export default function SetupApp({ context }: { context: SystemAppContext }) {
       <li><strong>本地 AI 连接（可选）</strong><span>{!snapshot ? "检查中…" : snapshot.connector ? `连接器已就绪${snapshot.connectorVersion ? ` · ${snapshot.connectorVersion}` : ""}` : "连接器未响应，请下载 macOS 安装包，安装后重新检测"}</span>
         <button className="secondary" onClick={() => { void context.request("openInstallGuide").catch(() => setError("请从项目 README 打开安装说明。")); }}>下载与安装说明</button>
         {snapshot?.connector && <><label>选择 AI 客户端<select aria-label="向导 AI 客户端" value={provider} onChange={event => { setProvider(event.target.value); setConnected(false); }}>{!provider && <option value="">尚无可用客户端</option>}{snapshot.providers.filter(item => item.available).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <details><summary>客户端检测详情</summary>{snapshot.providers.map(item => <p key={item.id}>{item.name}：{item.available ? "可连接" : item.reason || "尚未就绪"}</p>)}</details>
           {!provider && <p>未检测到可用客户端。已有微应用仍可运行；AI 创作需先安装并登录 Codex、Claude Code 或 DeepSeek Harness。</p>}
           <button className="secondary" disabled={busy || !provider} onClick={() => { void connect(); }}>连接所选客户端</button></>}
         {connected && <span role="status">AI 客户端已连接</span>}

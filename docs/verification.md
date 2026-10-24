@@ -1,5 +1,15 @@
 # 本机验证记录
 
+## 0.5.1 原生轻量分发：2026-10-24
+
+- 当前 macOS arm64 完整 DMG 约 0.94 MB（含扩展、GUI 安装器、原生连接器和连接脚本），低于 5,000,000 字节构建门槛。包内无 Node、node_modules 或 Claude 引擎；没有首次启动下载运行时的步骤。`otool -L` 检查到的动态库均为 macOS 系统库，构建对非系统动态库依赖直接报错。
+- `npm run build:native`、`npm test`：78 项通过。新增原生 JavaScriptCore 下的 Codex 握手/技能/配置/取消，ACP 并行/恢复/模型/插话/取消、连接期授权、附件分片/重试/UTF-8/归属校验，以及原生 MCP 工具代理的有效/无效 token 链路。官方 MCP SDK 客户端验证了工具发现、参数校验和调用互操作。
+- `npm run test:e2e`：Node 开发连接器下 28 项通过、4 项真实客户端/模型测试跳过。`BEEHELPER_NATIVE_CONNECTOR=1 npm run test:e2e`：真实扩展改走原生连接器后同样 28 项通过、4 项跳过。没有真实模型调用或个人业务操作。
+- `npm run test:installer`：执行包内签名后的原生安装器，在临时用户目录安装；PATH 不提供 Node/npm，连接器使用系统 JavaScriptCore。合成外部 Agent 夹具显式使用开发机 Node，不是连接器依赖。Native Messaging/ACP 握手、修复与卸载通过，个人安装未修改。
+- Claude 适配器为可选外部客户端，缺失时显示具体原因；不以删除静默下载步骤来掩盖运行依赖。源码开发模式仍可使用仓库中的 Claude ACP 包。
+
+编译目标 macOS 13+；本轮没有完成 macOS 13、x64 实机、Windows/Linux 原生分发、Developer ID 公证或真实客户端/模型的全量验收。系统 JavaScriptCore 仅运行随包的可信连接脚本，用户微应用仍运行在浏览器隔离环境。
+
 ## 0.5.0 安装与首次使用切片：2026-10-24
 
 环境：macOS arm64，独立 Chromium 测试配置。既有聊天布局与远端更新已合并，本轮未连接个人业务页面。

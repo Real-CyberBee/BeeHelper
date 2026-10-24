@@ -112,6 +112,7 @@ export interface FixtureAgent { id: string; name: string; args?: string[] }
  */
 export async function writeNativeHostFixture(directory: string, agents: FixtureAgent[]): Promise<void> {
   if (isWindows) throw new Error("Windows 的 Native Messaging 需要编译 .exe 启动器；本套件请在 macOS/Linux 运行，或只运行不依赖连接器的用例");
+  if (process.env.BEEHELPER_NATIVE_CONNECTOR === "1" && (process.platform !== "darwin" || !existsSync(path.resolve(".local/native/bin/beehelper")))) throw new Error("原生 E2E 需要 macOS 并先运行 npm run build:native");
   const hosts = path.join(directory, "NativeMessagingHosts");
   await mkdir(hosts, { recursive: true });
   const wrapper = path.join(directory, "native-host.sh");
@@ -125,7 +126,7 @@ export async function writeNativeHostFixture(directory: string, agents: FixtureA
     `export BEEHELPER_CODEX=${quote(path.resolve("tests/fixtures/fake-agent.mjs"))}`,
     `export BEEHELPER_WORKSPACE=${quote(path.join(directory, "workspace"))}`,
     `export BEEHELPER_AGENTS_CONFIG=${quote(agentsFile)}`,
-    `exec ${quote(process.execPath)} ${quote(path.resolve("connector/host.mjs"))} "$@"`,
+    process.env.BEEHELPER_NATIVE_CONNECTOR === "1" ? `exec ${quote(path.resolve(".local/native/bin/beehelper"))} "$@"` : `exec ${quote(process.execPath)} ${quote(path.resolve("connector/host.mjs"))} "$@"`,
     ""
   ].join("\n"), { mode: 0o700 });
   await writeFile(path.join(hosts, "io.beehelper.codex.json"), JSON.stringify({

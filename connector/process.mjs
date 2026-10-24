@@ -13,7 +13,8 @@ export function spawnAgent(launch, options = {}) {
   });
 }
 export class JsonRpcProcess {
-  constructor(launch, { cwd, env, onNotification = () => {}, onRequest, onExit = () => {} } = {}) {
+  constructor(launch, { cwd, env, onNotification = () => {}, onRequest, onExit = () => {}, jsonrpc = false } = {}) {
+    this.jsonrpc = jsonrpc;
     this.child = spawnAgent(launch, { cwd, env });
     this.pending = new Map(); this.sequence = 0; this.closed = false;
     const fail = error => { if (!this.closed) { this.close(error); onExit(error); } };
@@ -28,6 +29,7 @@ export class JsonRpcProcess {
         const line = buffer.slice(0, boundary); buffer = buffer.slice(boundary + 1);
         let message;
         try { message = JSON.parse(line); } catch { continue; }
+        if (!message || typeof message !== "object" || Array.isArray(message)) continue;
         if (message.id !== undefined && !message.method) {
           const request = this.pending.get(message.id);
           if (request) {
@@ -39,7 +41,7 @@ export class JsonRpcProcess {
             if (!onRequest) throw new Error("客户端未实现此交互");
             return onRequest(message.method, message.params ?? {});
           }).then(result => this.write({ id: message.id, result }), error => this.write({ id: message.id, error: { code: -32000, message: safeError(error) } })).catch(() => {});
-        } else if (message.method) onNotification(message.method, message.params ?? {});
+        } else if (message.method) { try { onNotification(message.method, message.params ?? {}); } catch (error) { fail(error); } }
       }
     });
     this.child.stdin.on("error", fail);
@@ -50,14 +52,14 @@ export class JsonRpcProcess {
   }
   write(message) {
     if (this.closed) throw new Error("Agent 连接已关闭");
-    this.child.stdin.write(JSON.stringify(message) + "\n");
+    this.child.stdin.write(JSON.stringify(this.jsonrpc ? { jsonrpc: "2.0", ...message } : message) + "\n");
   }
   notify(method, params = {}) { this.write({ method, params }); }
   call(method, params = {}, timeout = 45_000) {
     if (this.closed) return Promise.reject(new Error("Agent 连接已关闭"));
     const id = ++this.sequence;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(`Agent 请求超时：${method}，结果可能未知`)); }, timeout);
+      const timer = timeout > 0 ? setTimeout(() => { this.pending.delete(id); reject(new Error(`Agent 请求超时：${method}，结果可能未知`)); }, timeout) : undefined;
       this.pending.set(id, { resolve, reject, timer });
       try { this.write({ id, method, params }); } catch (error) { clearTimeout(timer); this.pending.delete(id); reject(error); }
     });

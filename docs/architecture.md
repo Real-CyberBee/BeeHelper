@@ -232,3 +232,11 @@ background service worker
 运行记录增加可选 `documentId`，旧记录自然缺省；真实活动状态还须匹配内存实例、tab、document、URL 和运行状态，旧记录不能单独证明仍在运行。后台重启后的未知状态保留，普通导航清除旧文档实例。
 
 macOS 分发包内置 Node/生产依赖与扩展文件，安装器把完整版本复制到每用户目录，再切换稳定入口并注册 native host；不依赖源码 checkout，预览版扩展仍由用户在浏览器加载。正式签名、商店分发与自动更新另行完成，细节见[首次使用](getting-started.md)。
+
+## 0.5.1 轻量 macOS 宿主
+
+macOS 分发改为一个 Swift 原生程序，调用系统 JavaScriptCore 运行静态打包的连接器代码，Foundation 负责子进程/文件/Unix socket，CryptoKit 负责增量 SHA256。安装与卸载同样由原生程序完成，不再依赖或捆绑 Node、npm、生产依赖目录和 Claude 引擎。编译目标为 macOS 13+，当前已验证 arm64；其它系统继续保留源码模式的 Node 连接器。
+
+`connector/native/platform.mjs` 只适配现有连接器使用的 IO、字节缓冲、计时和进程能力，不是通用 Node 兼容层。JavaScriptCore 只执行随包的可信连接脚本，用户微应用仍在浏览器 userScripts/sandbox 中执行。复用 `SessionHost`、附件存储、Codex/ACP 适配器和工具代理，保持同一套会话与 token 归属规则；ACP 使用已有 JSONL 进程抽象，原生 MCP 实现只声明工具协议能力，参数仍按共用 schema 校验。
+
+原生 MCP 子进程由同一二进制 `--mcp` 模式启动，工具 schema 在构建时生成，官方 MCP SDK 客户端用于兼容验证。无需引入新的线上依赖或下载服务。Claude ACP 适配器作为可选外部客户端发现，不随轻量宿主捆绑；缺失时能力清单明确不可用。完整 DMG 设置 5,000,000 字节上限，超限即构建失败。

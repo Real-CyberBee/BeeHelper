@@ -16,12 +16,14 @@ let child;
 try {
   const installed = await installDistribution({ source, home });
   const paths = installationPaths(home);
-  await access(path.join(paths.current, "runtime/LICENSE"));
+  await access(path.join(paths.current, "THIRD_PARTY_NOTICES.txt"));
+  await assert.rejects(access(path.join(paths.current, "runtime")));
+  await assert.rejects(access(path.join(paths.current, "node_modules")));
   const fixture = path.join(temporary, "fixture-agent.mjs");
   await cp(path.join(root, "tests/fixtures/fake-agent.mjs"), fixture);
   const config = path.join(temporary, "agents.json");
-  await writeFile(config, JSON.stringify({ agents: [{ id: "installed-fixture", name: "Installed Fixture", command: path.join(paths.current, "runtime/node"), args: [fixture, "--acp-fixture"] }] }));
-  // 无系统 Node/npm 的 PATH，所有写入限定到临时目录；不连接个人 Agent。
+  await writeFile(config, JSON.stringify({ agents: [{ id: "installed-fixture", name: "Installed Fixture", command: process.execPath, args: [fixture, "--acp-fixture"] }] }));
+  // 连接器不使用 Node/npm；外部合成 Agent 夹具显式使用开发机 Node，不属于安装包依赖。
   const env = { PATH: "/usr/bin:/bin", TMPDIR: tmpdir(), BEEHELPER_WORKSPACE: path.join(temporary, "workspace"), BEEHELPER_AGENTS_CONFIG: config };
   for (const variable of ["BEEHELPER_CODEX", "BEEHELPER_CLAUDE", "BEEHELPER_DSH", "BEEHELPER_CODEBUDDY"]) env[variable] = path.join(temporary, "not-installed");
   child = spawn(paths.host, [`chrome-extension://${extensionId}/`], { cwd: temporary, env, stdio: ["pipe", "pipe", "pipe"] });
@@ -57,5 +59,5 @@ try {
   await uninstallDistribution({ home });
   await assert.rejects(access(paths.host));
   console.log(JSON.stringify({ ok: true, version: installed.version, platform: process.platform, arch: process.arch,
-    bundledRuntime: true, nativeMessaging: true, acpHandshake: true, repair: true, uninstall: true, personalConfigurationModified: false }));
+    systemJavaScriptCore: true, bundledRuntime: false, nativeMessaging: true, acpHandshake: true, repair: true, uninstall: true, personalConfigurationModified: false }));
 } finally { child?.kill("SIGTERM"); await rm(temporary, { recursive: true, force: true }); }

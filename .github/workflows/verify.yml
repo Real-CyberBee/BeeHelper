@@ -38,6 +38,8 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - run: npm run build:native
+      - run: npm test
       - run: npm run build:installer
       - run: npm run test:installer
       - uses: actions/upload-artifact@v4
