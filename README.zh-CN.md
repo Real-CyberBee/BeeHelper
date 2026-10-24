@@ -60,7 +60,7 @@ npm run dev
 
 需要 Chrome 138+、Node.js 22.12+，以及至少一个已安装并配置的本地 Agent（Codex CLI、Claude Code 或 dsh）。dsh 使用其所在目录的兼容 Node 运行时。在“AI 会话”选择客户端后新建并连接；既有会话会保留。本版本已在 macOS 与 Linux 验证（Linux：Chrome 152，Claude Code 2.1 与 DeepSeek Harness 0.2 通过 ACP 实际连接）；Windows 的 Native Messaging 安装尚未实现。
 
-运行 `npm run setup:native` 后必须**完全退出并重启浏览器**（只刷新扩展不够）：Chrome 只在启动时读取 Native Messaging 清单。如果默认客户端 Codex 未安装，在新对话下拉里选择 Claude Code 或 DSH；侧边栏现在会自动选中可用的客户端。
+运行 `npm run setup:native` 后，回到侧边栏点 **重新检测**；当前 Chrome 通常会立即读取新的 host 清单。若仍显示连接器未就绪，再完全退出并重启浏览器。如果默认客户端 Codex 未安装，在新对话下拉里选择 Claude Code 或 DSH；侧边栏现在会自动选中可用的客户端。安装包方案与各浏览器路径见[连接器安装方式调研](docs/connector-installation.md)。
 
 ## 已实现的首版
 
@@ -108,6 +108,7 @@ Windows 上扩展/UI 用例可以运行；依赖夹具 Native Messaging 的会�
 - [会话交互与附件](docs/chat-interactions.md)
 - [本机测试与排障](docs/local-testing.md)
 - [微应用格式与 SDK](docs/microapp-sdk.md)
+- [连接器安装方式与一键安装调研](docs/connector-installation.md)
 - [Tampermonkey 生态对接](docs/userscripts.md)
 - [示例画廊](docs/demos.md)
 - [本机验证记录](docs/verification.md)

@@ -36,8 +36,10 @@ test("连接器清单位置按平台解析；Windows 走注册表，没有可复
   const home = path.join(path.sep, "home", "bee");
   const linux = installedNativeHostCandidates("linux", home);
   assert.ok(linux.some(item => item.endsWith(path.join("google-chrome", "NativeMessagingHosts", "io.beehelper.codex.json"))));
+  assert.ok(linux.some(item => item.endsWith(path.join("google-chrome-for-testing", "NativeMessagingHosts", "io.beehelper.codex.json"))));
   assert.ok(linux.some(item => item.endsWith(path.join("chromium", "NativeMessagingHosts", "io.beehelper.codex.json"))));
   const mac = installedNativeHostCandidates("darwin", home);
+  assert.ok(mac.some(item => item.includes(path.join("Google", "ChromeForTesting")) && item.endsWith("io.beehelper.codex.json")));
   assert.ok(mac.some(item => item.includes("Application Support") && item.endsWith("io.beehelper.codex.json")));
   assert.deepEqual(installedNativeHostCandidates("win32", home), []);
 });

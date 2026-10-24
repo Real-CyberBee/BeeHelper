@@ -91,11 +91,25 @@ function App() {
     setDb(result.db); setConnector(result.connector);
   }, []);
   const refreshTargets = useCallback(async () => { const tabs = await request<TargetTab[]>("tabs"); setTargets(tabs); setTargetId(current => tabs.some(tab => tab.id === current) ? current : tabs.find(tab => tab.active)?.id); }, []);
+  const refreshProviders = useCallback(async () => {
+    if (!extensionMode) return;
+    setProvidersLoaded(false);
+    try {
+      const list = await request<AgentProvider[]>("providers");
+      setProviders(list);
+      await refresh();
+      setNotice(list.some(provider => provider.available) ? "已重新检测本地 AI 客户端" : "没有检测到可连接的本地 AI 客户端");
+    } catch (error) {
+      setNotice(`无法加载本地 AI 客户端：${error instanceof Error ? error.message : String(error)}。请运行 npm run setup:native 后重试`);
+    } finally {
+      setProvidersLoaded(true);
+    }
+  }, []);
   useEffect(() => {
     void refresh().catch(error => setNotice(String(error)));
     void refreshTargets();
     void request("scriptsStatus").then(result => setScriptsReady(result.available));
-    if (extensionMode) void request<AgentProvider[]>("providers").then(setProviders).catch(error => setNotice(`无法加载本地 AI 客户端：${error instanceof Error ? error.message : String(error)}。请运行 npm run setup:native，并完全退出后重启 Chrome`)).finally(() => setProvidersLoaded(true));
+    if (extensionMode) void request<AgentProvider[]>("providers").then(setProviders).catch(error => setNotice(`无法加载本地 AI 客户端：${error instanceof Error ? error.message : String(error)}。请运行 npm run setup:native 后重试；若仍失败，完全退出并重启 Chrome`)).finally(() => setProvidersLoaded(true));
     return subscribe(event => {
       if (event.type === "database") void refresh();
       if (event.type === "status") setConnector(event.status);
@@ -312,8 +326,12 @@ function App() {
         <div className="setting-row"><span>当前会话</span><strong>{providerName} · {connector.version ?? (connector.ready ? "已就绪" : "未连接")}</strong></div>
         {connector.authenticated !== undefined && <div className="setting-row"><span>登录状态</span><strong>{connector.authenticated ? "已登录" : "未登录"}</strong></div>}
         <div className="setting-row"><span>页面脚本</span><strong>{scriptsReady ? "可用" : "未启用"}</strong></div>
-        {connectorMissing && <div className="setting-error">没有收到本地客户端列表：Native Messaging 连接器未注册或被浏览器忽略。请在项目目录运行 npm run setup:native，然后完全退出并重启 Chrome（只刷新扩展不够），再打开侧边栏。</div>}
-        {noUsableProvider && <div className="setting-error">未检测到可连接的本地客户端。请安装 Codex CLI、Claude Code 或 DeepSeek Harness，然后运行 npm run setup:native，并完全重启 Chrome（Native Messaging 清单只在浏览器启动时读取）。</div>}
+        {connectorMissing && <div className="setting-error">没有收到本地客户端列表：Native Messaging 连接器未注册或被浏览器忽略。请在项目目录运行 npm run setup:native，回到侧边栏点“重新检测”；若仍失败，完全退出并重启 Chrome。</div>}
+        {noUsableProvider && <div className="setting-error">没有检测到可连接的本地客户端。请先安装 Codex CLI、Claude Code 或 DeepSeek Harness，再运行 npm run setup:native 并点“重新检测”。</div>}
+        {(connectorMissing || noUsableProvider) && <div className="setting-actions">
+          <button type="button" className="secondary" disabled={pending} onClick={() => { void refreshProviders(); }}><RefreshCw size={13} />重新检测</button>
+          {extensionMode && <button type="button" className="secondary" onClick={() => { void chrome.tabs.create({ url: "https://github.com/Real-CyberBee/BeeHelper/blob/main/docs/connector-installation.md" }); }}>安装说明<ExternalLink size={12} /></button>}
+        </div>}
         {providers.map(provider => <div className="agent-provider-status" key={provider.id}><div><span>{provider.name}</span><span className={`badge ${provider.available ? "green" : ""}`}>{provider.available ? "可连接" : provider.installed ? "已安装 · 需适配" : "未就绪"}</span></div>{provider.reason && !provider.available && <small>{provider.reason}</small>}</div>)}
         {connector.error && <div className="setting-error">{connector.error}</div>}
         <div className="modal-actions">{extensionMode && <button className="secondary" onClick={() => { void chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` }); }}>扩展详情<ExternalLink size={14} /></button>}

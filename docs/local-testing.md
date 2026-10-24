@@ -27,9 +27,10 @@
 Linux 对应位置：
 
 - `~/.config/google-chrome/NativeMessagingHosts/io.beehelper.codex.json`
+- `~/.config/google-chrome-for-testing/NativeMessagingHosts/io.beehelper.codex.json`
 - `~/.config/chromium/NativeMessagingHosts/io.beehelper.codex.json`
 
-**注册或移动项目后要完全退出并重启浏览器**，只在 `chrome://extensions/` 点“重新加载”不会重新扫描 Native Messaging 清单。安装器会读取 PATH、`~/.local/bin` 等目录来发现 `codex`、`claude`、`dsh`；只有实际发现的客户端才会显示为“可连接”。也可以在执行安装器时用 `BEEHELPER_CODEX`、`BEEHELPER_CLAUDE`、`BEEHELPER_DSH` 指定绝对路径。
+注册或移动项目后，回到侧边栏点“重新检测”；当前 Chrome 通常会立即读取新的清单。若仍显示连接器未就绪，再完全退出并重启浏览器（只刷新 `chrome://extensions/` 不够）。安装器会读取 PATH、`~/.local/bin` 等目录来发现 `codex`、`claude`、`dsh`；只有实际发现的客户端才会显示为“可连接”。也可以在执行安装器时用 `BEEHELPER_CODEX`、`BEEHELPER_CLAUDE`、`BEEHELPER_DSH` 指定绝对路径。面向普通用户的安装包方案见[连接器安装方式调研](connector-installation.md)。
 
 连接器调用当前安装的 Node 与本地 Agent（Codex App Server 或 ACP）。它不修改 Codex 全局配置，不复制登录凭据；仅为自身 App Server 进程注入 BeeHelper MCP 配置。工作目录自动放在 `~/.local/share/beehelper/workspace`，不是微应用源码存储。
 
@@ -94,7 +95,7 @@ E2E 启动器在 `tests/e2e/harness.ts`，支持 Linux / macOS / Windows：
 | 现象 | 检查 |
 | --- | --- |
 | 找不到本地消息传递 host | 运行 `npm run setup:native`，检查项目是否移动、扩展 ID 是否一致，然后完全重启 Chrome |
-| 刚运行 setup:native 仍连不上 | 只刷新扩展不够；Native Messaging 清单在浏览器启动时读取，需完全退出并重启 |
+| 刚运行 setup:native 仍连不上 | 先在设置页点“重新检测”；仍失败则完全退出并重启浏览器（部分版本只在启动时读取清单） |
 | 下拉里显示 Codex 未就绪 | 本机没有 Codex；在新对话下拉选择 Claude Code 或 DSH，或使用“改用 … 开始”按钮 |
 | Linux 上装的是 Chromium 而不是 Chrome | 安装器同时写入 `~/.config/chromium`；若用 Chrome for Testing 等其他浏览器，需把清单放到对应配置目录 |
 | 页面脚本不可用 | 在扩展详情打开“允许运行用户脚本”，再刷新工作台的目标页面 |

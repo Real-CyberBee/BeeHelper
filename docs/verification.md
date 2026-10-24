@@ -115,7 +115,9 @@
 | `npm run test:e2e`（Linux，无头，默认夹具） | **23 项通过，4 项跳过**（真实连接器 1 项 + 真实模型 3 项）；扩展本地闭环与会话夹具套件完整运行 |
 | `BEEHELPER_E2E_CONNECTOR=1`（Linux，真实连接器） | **24 项通过，3 项跳过**：真实 Native Messaging 连接 Claude Code 与 DSH，均返回模型列表 |
 | Linux 本机连接（Chrome 152） | Claude Code 2.1.289：doctor 与扩展内连接通过，5 个模型；DSH 0.2.0-rc.2：doctor 与扩展内连接通过，3 个模型；Codex 未安装 |
-| 默认客户端缺失时的 UI | 新对话自动选中已安装客户端；未就绪会话提供“改用 … 开始”；连接器未注册时设置页给出 setup:native + 重启提示 |
+| 默认客户端缺失时的 UI | 新对话自动选中已安装客户端；未就绪会话提供“改用 … 开始”；连接器未注册时设置页提供“重新检测”和安装说明 |
+| Native Messaging 清单热更新 | Chromium 中先启动扩展、再写入清单，`providers` 立即成功，无需重启浏览器；文档改为“先重新检测，仍失败再完全重启” |
+| Chrome for Testing 清单路径 | 按 Chrome 146+ 官方路径修正：macOS `Google/ChromeForTesting`，Linux `google-chrome-for-testing`；安装器、E2E 发现逻辑与单测同步 |
 | E2E 启动器跨平台路径 | 单测覆盖 Linux/macOS/Windows 的 Chromium 缓存、Native Messaging 清单与 `CHROME_PATH` 优先级 |
 
 GreasyFork 在本环境网络下不可达（超时），已验证错误提示与离线 `.user.js` 导入路径；ScriptCat 可正常搜索与导入。

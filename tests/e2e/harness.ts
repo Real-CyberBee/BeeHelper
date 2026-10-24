@@ -141,10 +141,10 @@ export async function writeNativeHostFixture(directory: string, agents: FixtureA
 export function installedNativeHostCandidates(platform: NodeJS.Platform = process.platform, home = homedir()): string[] {
   if (platform === "win32") return [];
   if (platform === "darwin") {
-    return ["Google/Chrome", "Google/Chrome for Testing", "Chromium"].map(browser =>
+    return ["Google/Chrome", "Google/ChromeForTesting", "Chromium"].map(browser =>
       path.join(home, "Library", "Application Support", browser, "NativeMessagingHosts", "io.beehelper.codex.json"));
   }
-  return ["google-chrome", "chromium"].map(browser =>
+  return ["google-chrome", "google-chrome-for-testing", "chromium"].map(browser =>
     path.join(home, ".config", browser, "NativeMessagingHosts", "io.beehelper.codex.json"));
 }
 

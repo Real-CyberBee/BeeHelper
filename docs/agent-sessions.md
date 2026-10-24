@@ -29,7 +29,7 @@ npm run setup:native
 
 连接器兼容保留原 Native Messaging 名称 `io.beehelper.codex`，因此现有扩展 ID 和注册路径不变；名称不再意味着只能连接 Codex。
 
-Linux 注册文件在 `~/.config/google-chrome|chromium/NativeMessagingHosts/`，macOS 在 `~/Library/Application Support/...`。注册后必须完全重启浏览器；只刷新扩展不会重新读取清单。
+Linux 注册文件在 `~/.config/google-chrome|google-chrome-for-testing|chromium/NativeMessagingHosts/`，macOS 在 `~/Library/Application Support/...`。注册后回到侧边栏点“重新检测”；若仍失败再完全重启浏览器。
 
 安装器发现 PATH、用户 `.local/bin`、常见系统目录及 nvm Node 版本目录下的可执行文件。可在执行安装器时用 `BEEHELPER_CODEX`、`BEEHELPER_CLAUDE`、`BEEHELPER_DSH`、`BEEHELPER_CODEBUDDY` 指定绝对路径。安装器只保存可执行文件路径，不复制认证材料。JS 启动器优先使用同一 bin 目录中的 Node，避免 dsh 被不兼容的宿主 Node 静默跳过。
 

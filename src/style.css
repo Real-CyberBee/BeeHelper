@@ -236,3 +236,6 @@ body{background:var(--bee-cream)}
 .about-brand>div>span{font-size:10px;color:#a08d64}
 .about-brand>button{display:inline-flex;align-items:center;gap:3px;font-size:10px;color:#8a5c00;border:1px solid #e8c264;background:#fffdf6;border-radius:4px;padding:3px 6px;white-space:nowrap}
 .about-brand>button:hover{background:#fff8e4}
+
+.setting-actions{display:flex;flex-wrap:wrap;gap:8px;margin:-2px 0 12px}
+.setting-actions .secondary{min-height:29px;font-size:11px;padding:5px 10px}

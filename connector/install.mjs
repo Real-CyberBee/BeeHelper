@@ -25,8 +25,8 @@ for (const variable of ["BEEHELPER_AGENTS_CONFIG", "BEEHELPER_WORKSPACE"]) if (p
 await writeFile(host, `#!/bin/sh\n${Object.entries({ ...executables, ...configurationPaths }).map(([name, value]) => `export ${name}=${quote(value)}\n`).join("")}exec ${quote(process.execPath)} ${quote(path.join(root, "connector/host.mjs"))} "$@"\n`, { mode: 0o700 });
 await chmod(host, 0o700);
 let locations;
-if (process.platform === "darwin") locations = ["Google/Chrome", "Google/Chrome for Testing", "Chromium"].map(browser => path.join(homedir(), "Library/Application Support", browser, "NativeMessagingHosts"));
-else if (process.platform === "linux") locations = ["google-chrome", "chromium"].map(browser => path.join(homedir(), ".config", browser, "NativeMessagingHosts"));
+if (process.platform === "darwin") locations = ["Google/Chrome", "Google/ChromeForTesting", "Chromium"].map(browser => path.join(homedir(), "Library/Application Support", browser, "NativeMessagingHosts"));
+else if (process.platform === "linux") locations = ["google-chrome", "google-chrome-for-testing", "chromium"].map(browser => path.join(homedir(), ".config", browser, "NativeMessagingHosts"));
 else throw new Error("此首版本地安装器支持 macOS 和 Linux，Windows 安装尚未实现");
 for (const directory of locations) {
   await mkdir(directory, { recursive: true });

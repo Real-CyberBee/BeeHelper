@@ -47,7 +47,7 @@ The primary interface is the **native Chrome side panel**, opened from the exten
 
 Requirements: Chrome 138+, Node.js 22.12+, and at least one installed, configured local agent (Codex CLI, Claude Code, or dsh). dsh uses its own compatible Node runtime. The prototype has been verified on macOS and on Linux (Chrome 152, with Claude Code 2.1 and DeepSeek Harness 0.2 connected over ACP); Windows native-messaging installation is not implemented.
 
-After `npm run setup:native`, **fully restart the browser** (reloading the extension is not enough): Chrome reads Native Messaging manifests at startup. If the default client (Codex) is not installed, pick Claude Code or DSH in the new-chat selector; the sidebar now defaults to an available client on its own.
+After `npm run setup:native`, click **重新检测** in the sidebar; current Chrome versions usually pick up a new host manifest immediately. If the host is still not found, fully quit and restart the browser. If the default client (Codex) is not installed, pick Claude Code or DSH in the new-chat selector; the sidebar now defaults to an available client on its own. See [Connector Installation](docs/connector-installation.md) for the installer roadmap and per-browser paths.
 
 From a fresh checkout:
 
@@ -114,6 +114,7 @@ Detailed project documents are currently in Chinese:
 - [Chat Interactions and Attachments](docs/chat-interactions.md)
 - [Local Testing and Troubleshooting](docs/local-testing.md)
 - [Microapp Format and SDK](docs/microapp-sdk.md)
+- [Connector Installation and One-Click Setup Research](docs/connector-installation.md)
 - [Tampermonkey Ecosystem and Userscript Import](docs/userscripts.md)
 - [Demo Gallery](docs/demos.md)
 - [Verification Notes](docs/verification.md)
