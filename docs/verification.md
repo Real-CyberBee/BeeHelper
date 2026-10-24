@@ -113,10 +113,13 @@
 | `bee.askAI` 失败路径 | 通过：未连接客户端时返回可读错误，不伪装成功 |
 | 移动端 390×844 | 通过：库、会话与底部导航无横向溢出 |
 | `npm run test:e2e`（Linux，无头，默认夹具） | **23 项通过，4 项跳过**（真实连接器 1 项 + 真实模型 3 项）；扩展本地闭环与会话夹具套件完整运行 |
+| `BEEHELPER_E2E_CONNECTOR=1`（Linux，真实连接器） | **24 项通过，3 项跳过**：真实 Native Messaging 连接 Claude Code 与 DSH，均返回模型列表 |
+| Linux 本机连接（Chrome 152） | Claude Code 2.1.289：doctor 与扩展内连接通过，5 个模型；DSH 0.2.0-rc.2：doctor 与扩展内连接通过，3 个模型；Codex 未安装 |
+| 默认客户端缺失时的 UI | 新对话自动选中已安装客户端；未就绪会话提供“改用 … 开始”；连接器未注册时设置页给出 setup:native + 重启提示 |
 | E2E 启动器跨平台路径 | 单测覆盖 Linux/macOS/Windows 的 Chromium 缓存、Native Messaging 清单与 `CHROME_PATH` 优先级 |
 
 GreasyFork 在本环境网络下不可达（超时），已验证错误提示与离线 `.user.js` 导入路径；ScriptCat 可正常搜索与导入。
 
-默认 E2E 使用仓库内 fake ACP agent 与临时 native host 夹具，不需要本机连接器，也不会调用模型。本环境未安装真实连接器，因此 `npm run doctor`、真实连接器用例与真实模型会话未验证（对应 4 项显式 skipped，不会伪装成通过）；`bee.askAI` 的排队与投递逻辑复用既有会话服务单元测试。
+默认 E2E 使用仓库内 fake ACP agent 与临时 native host 夹具，不需要本机连接器，也不会调用模型。真实连接器模式（`BEEHELPER_E2E_CONNECTOR=1`）在本机 Linux + Chrome 152 上通过：安装器注册的 host 被扩展发现，Claude Code 与 DSH 均完成 ACP 握手并返回模型列表。真实模型请求仍未开启（对应 3 项显式 skipped），不会伪装成通过；`bee.askAI` 的排队与投递逻辑复用既有会话服务单元测试。
 
 跨平台说明：默认无头，`E2E_HEADED=1` 有头；`CHROME_PATH` 可覆盖浏览器；Linux/macOS 可跑全部本地用例；Windows 上扩展/UI 用例可跑，依赖 Native Messaging 夹具的会话套件因缺少 `.exe` 启动器自动跳过。

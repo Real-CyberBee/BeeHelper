@@ -66,13 +66,20 @@ function App() {
   const [notice, setNotice] = useState("");
   const [pending, setPending] = useState(false);
   const [providers, setProviders] = useState<AgentProvider[]>([]);
+  const [providersLoaded, setProvidersLoaded] = useState(false);
   const [settings, setSettings] = useState(false);
   const [gallery, setGallery] = useState(false);
   const [market, setMarket] = useState(false);
   const [scriptsReady, setScriptsReady] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const busy = sessionBusy(db ? activeSession(db) : undefined);
-  const providerName = providers.find(item => item.id === (db ? activeSession(db)?.providerId : "codex"))?.name ?? "AI";
+  const sessionProvider = providers.find(item => item.id === (db ? activeSession(db)?.providerId : "codex"));
+  const providerName = sessionProvider?.name ?? "AI";
+  const usableProviders = providers.filter(item => item.available);
+  const activeProviderUnavailable = extensionMode && providers.length > 0 && sessionProvider !== undefined && !sessionProvider.available;
+  const noUsableProvider = extensionMode && providers.length > 0 && usableProviders.length === 0;
+  const connectorMissing = extensionMode && providersLoaded && providers.length === 0;
+  const connectionLabel = connectorMissing ? "连接器未就绪" : noUsableProvider ? "未检测到客户端" : activeProviderUnavailable ? `${providerName} 不可用` : `${providerName} ${connector.ready ? "已连接" : "未连接"}`;
   const selected = db?.entries.find(entry => entry.id === selectedId);
   const revision = selected ? current(selected) : undefined;
   const dirty = Boolean(editor && revision && JSON.stringify(editor.definition) !== JSON.stringify(selected?.revisions.find(item => item.id === editor.base)?.definition));
@@ -88,7 +95,7 @@ function App() {
     void refresh().catch(error => setNotice(String(error)));
     void refreshTargets();
     void request("scriptsStatus").then(result => setScriptsReady(result.available));
-    if (extensionMode) void request<AgentProvider[]>("providers").then(setProviders).catch(error => setNotice(String(error)));
+    if (extensionMode) void request<AgentProvider[]>("providers").then(setProviders).catch(error => setNotice(`无法加载本地 AI 客户端：${error instanceof Error ? error.message : String(error)}。请运行 npm run setup:native，并完全退出后重启 Chrome`)).finally(() => setProvidersLoaded(true));
     return subscribe(event => {
       if (event.type === "database") void refresh();
       if (event.type === "status") setConnector(event.status);
@@ -201,7 +208,7 @@ function App() {
     <header className="topbar">
       <div className="brand"><span className="brand-mark"><img src={logoUrl} alt="" /></span><strong>BeeHelper</strong><span className="version">BETA</span></div>
       <div className="top-actions">
-        <button className={`connection ${connector.ready ? "connected" : ""}`} onClick={() => { setSettings(true); }}><span className="status-dot" /> <span>{providerName} {connector.ready ? "已连接" : "未连接"}</span></button>
+        <button className={`connection ${connector.ready ? "connected" : ""}`} onClick={() => { setSettings(true); }}><span className={`status-dot ${noUsableProvider || connectorMissing ? "warning" : ""}`} /> <span>{connectionLabel}</span></button>
         {extensionMode && <IconButton title="在标签页打开" onClick={() => { void chrome.tabs.create({ url: chrome.runtime.getURL("index.html") }); }}><ExternalLink size={16} /></IconButton>}
         <IconButton title="设置" onClick={() => setSettings(true)}><Settings2 size={17} /></IconButton>
       </div>
@@ -305,10 +312,12 @@ function App() {
         <div className="setting-row"><span>当前会话</span><strong>{providerName} · {connector.version ?? (connector.ready ? "已就绪" : "未连接")}</strong></div>
         {connector.authenticated !== undefined && <div className="setting-row"><span>登录状态</span><strong>{connector.authenticated ? "已登录" : "未登录"}</strong></div>}
         <div className="setting-row"><span>页面脚本</span><strong>{scriptsReady ? "可用" : "未启用"}</strong></div>
+        {connectorMissing && <div className="setting-error">没有收到本地客户端列表：Native Messaging 连接器未注册或被浏览器忽略。请在项目目录运行 npm run setup:native，然后完全退出并重启 Chrome（只刷新扩展不够），再打开侧边栏。</div>}
+        {noUsableProvider && <div className="setting-error">未检测到可连接的本地客户端。请安装 Codex CLI、Claude Code 或 DeepSeek Harness，然后运行 npm run setup:native，并完全重启 Chrome（Native Messaging 清单只在浏览器启动时读取）。</div>}
         {providers.map(provider => <div className="agent-provider-status" key={provider.id}><div><span>{provider.name}</span><span className={`badge ${provider.available ? "green" : ""}`}>{provider.available ? "可连接" : provider.installed ? "已安装 · 需适配" : "未就绪"}</span></div>{provider.reason && !provider.available && <small>{provider.reason}</small>}</div>)}
         {connector.error && <div className="setting-error">{connector.error}</div>}
         <div className="modal-actions">{extensionMode && <button className="secondary" onClick={() => { void chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` }); }}>扩展详情<ExternalLink size={14} /></button>}
-          <button className="primary" disabled={pending || busy || !extensionMode} onClick={() => { void act(connectAgent); }}><Plug size={15} />{pending ? "连接中…" : connector.ready ? "检查连接" : `连接 ${providerName}`}</button>
+          <button className="primary" disabled={pending || busy || !extensionMode || activeProviderUnavailable || noUsableProvider} onClick={() => { void act(connectAgent); }}><Plug size={15} />{pending ? "连接中…" : noUsableProvider ? "未检测到客户端" : activeProviderUnavailable ? "当前客户端未就绪" : connector.ready ? "检查连接" : `连接 ${providerName}`}</button>
         </div>
       </section>
     </div>}

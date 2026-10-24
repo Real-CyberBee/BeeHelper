@@ -45,7 +45,9 @@ To upgrade, stop in-flight tasks, reload BeeHelper at `chrome://extensions/`, re
 
 The primary interface is the **native Chrome side panel**, opened from the extension toolbar icon or a microapp's in-page shortcut. Full-tab and web previews are auxiliary debugging surfaces, not replacements for the extension sidebar.
 
-Requirements: Chrome 138+, Node.js 22.12+, and at least one installed, configured local agent (Codex CLI, Claude Code, or dsh). dsh uses its own compatible Node runtime. The prototype has been verified on macOS. The native connector installer includes Linux paths, but Linux has not been verified on a real machine; Windows installation is not supported.
+Requirements: Chrome 138+, Node.js 22.12+, and at least one installed, configured local agent (Codex CLI, Claude Code, or dsh). dsh uses its own compatible Node runtime. The prototype has been verified on macOS and on Linux (Chrome 152, with Claude Code 2.1 and DeepSeek Harness 0.2 connected over ACP); Windows native-messaging installation is not implemented.
+
+After `npm run setup:native`, **fully restart the browser** (reloading the extension is not enough): Chrome reads Native Messaging manifests at startup. If the default client (Codex) is not installed, pick Claude Code or DSH in the new-chat selector; the sidebar now defaults to an available client on its own.
 
 From a fresh checkout:
 

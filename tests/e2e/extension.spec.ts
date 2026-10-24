@@ -208,13 +208,23 @@ if (!disabled) throw new Error("误操作禁用控件");`
     await ui.screenshot({ path: ".local/screenshots/mobile.png" });
     await ui.setViewportSize({ width: 1440, height: 960 });
   });
-  test("真实 Native Messaging 连接 Codex 并读取模型", async () => {
-    test.skip(!connectorTest, "设置 BEEHELPER_E2E_CONNECTOR=1 并使用已安装且已登录的 Codex 连接器");
-    const result = await rpc(ui, "connect");
-    expect(result.authenticated).toBe(true);
-    expect(result.version).toContain("codex-cli");
-    const models = await rpc(ui, "models");
-    expect(models.data.length).toBeGreaterThan(0);
+  test("真实 Native Messaging 连接本机 AI 客户端并读取模型", async () => {
+    test.skip(!connectorTest, "设置 BEEHELPER_E2E_CONNECTOR=1 并使用本机已安装的 Codex / Claude Code / DSH");
+    const providers = await rpc(ui, "providers");
+    const known = new Set(["codex", "claude", "dsh", "codebuddy"]);
+    const available = providers.filter((provider: any) => provider.available && known.has(provider.id));
+    expect(available.length, "至少需要一个已安装且可连接的本地客户端").toBeGreaterThan(0);
+    for (const provider of available) {
+      const session = await rpc(ui, "sessionNew", { providerId: provider.id });
+      const result = await rpc(ui, "connect", { sessionId: session.id });
+      expect(result.ready, provider.id).toBe(true);
+      if (provider.id === "codex") {
+        expect(result.authenticated, provider.id).toBe(true);
+        expect(result.version, provider.id).toContain("codex-cli");
+      }
+      const models = await rpc(ui, "models", { sessionId: session.id });
+      expect(models.data.length, provider.id).toBeGreaterThan(0);
+    }
     expect(errors).toEqual([]);
   });
   test("真实 Codex 经 MCP 创建候选，不操作业务页面", async () => {

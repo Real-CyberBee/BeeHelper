@@ -18,6 +18,10 @@ interface Props {
 export function AgentChat({ database, providers, context, contextLabel, refresh, onError }: Props) {
   const session = activeSession(database);
   const drafts = useChatDrafts(session, onError);
+  const usableProviders = providers.filter(provider => provider.available);
+  const sessionProvider = session ? providers.find(provider => provider.id === session.providerId) : undefined;
+  const sessionUnavailable = Boolean(session && providers.length > 0 && sessionProvider && !sessionProvider.available);
+  const fallbackProvider = usableProviders[0];
   const [providerId, setProviderId] = useState("codex");
   const [search, setSearch] = useState("");
   const [archived, setArchived] = useState(false);
@@ -37,6 +41,13 @@ export function AgentChat({ database, providers, context, contextLabel, refresh,
     finally { setPending(false); }
   };
   useEffect(() => { if (following) end.current?.scrollIntoView({ block: "end" }); }, [session?.id, session?.messages.at(-1)?.text, session?.messages.length, following]);
+  // 本机没有 Codex 时，新对话默认落到实际可用的客户端，而不是创建一个连不上的 Codex 会话。
+  useEffect(() => {
+    if (!providers.length) return;
+    if (providers.some(provider => provider.id === providerId && provider.available)) return;
+    const first = providers.find(provider => provider.available);
+    if (first) setProviderId(first.id);
+  }, [providers, providerId]);
   useEffect(() => { setMode("queue"); }, [session?.id, session?.capabilities.steer]);
   useEffect(() => { setFollowing(true); setShowSearch(false); setMessageSearch(""); }, [session?.id]);
   async function send() {
@@ -78,7 +89,7 @@ export function AgentChat({ database, providers, context, contextLabel, refresh,
         <select aria-label="新会话客户端" value={providerId} onChange={event => setProviderId(event.target.value)}>
           {(providers.length ? providers : [{ id: "codex", name: "Codex", available: true }]).map(provider => <option key={provider.id} value={provider.id} disabled={!provider.available}>{provider.name}{!provider.available ? " · 未就绪" : ""}</option>)}
         </select>
-        <button type="button" className="icon-button" aria-label="新对话" title="新对话" disabled={pending} onClick={() => { void action(() => request("sessionNew", { providerId })); }}><Plus size={17} /></button>
+        <button type="button" className="icon-button" aria-label="新对话" title={providers.length > 0 && !usableProviders.length ? "没有可连接的本地客户端" : "新对话"} disabled={pending || (providers.length > 0 && !usableProviders.length)} onClick={() => { void action(() => request("sessionNew", { providerId })); }}><Plus size={17} /></button>
       </div>
     </div>
     <details className="session-history" open>
@@ -105,12 +116,14 @@ export function AgentChat({ database, providers, context, contextLabel, refresh,
         <button type="button" className="icon-button" title="搜索消息" aria-label="搜索消息" onClick={() => { setShowSearch(!showSearch); if (showSearch) { setMessageSearch(""); setFollowing(true); } }}><Search size={14} /></button>
         <button type="button" className="icon-button" title="导出会话" aria-label="导出会话" onClick={exportConversation}><Download size={14} /></button>
         <button type="button" className="icon-button" title="会话状态" aria-label="会话状态" onClick={() => setStatusOpen(true)}><Info size={14} /></button>
-        <button type="button" className="icon-button" title="连接或恢复会话" aria-label="连接或恢复会话" disabled={pending || busy || !extensionMode} onClick={() => { void action(() => request("connect", { sessionId: session.id })); }}><Plug size={14} /></button>
+        <button type="button" className="icon-button" title={sessionUnavailable ? "当前客户端未就绪，请新建对话并选择其他客户端" : "连接或恢复会话"} aria-label="连接或恢复会话" disabled={pending || busy || !extensionMode || sessionUnavailable} onClick={() => { void action(() => request("connect", { sessionId: session.id })); }}><Plug size={14} /></button>
       </div>
       <div className="chat-target"><span>{contextLabel ?? "本地工作空间"}</span>{typeof context.targetTabId === "number" && <small>网页 #{context.targetTabId}</small>}</div>
       {showSearch && <div className="message-search"><Search size={13} /><input autoFocus aria-label="搜索当前会话消息" value={messageSearch} onChange={event => { setMessageSearch(event.target.value); setFollowing(false); }} /><span>{visibleMessages.length}</span><button type="button" className="icon-button" title="关闭消息搜索" aria-label="关闭消息搜索" onClick={() => { setShowSearch(false); setMessageSearch(""); setFollowing(true); }}><X size={13} /></button></div>}
       <div className="messages" role="region" aria-label="会话消息" onScroll={event => { const element = event.currentTarget; setFollowing(element.scrollHeight - element.scrollTop - element.clientHeight < 80); }}>
-        {!session.messages.length && <div className="chat-empty"><span className="agent-mark"><MessageSquare size={25} /></span><h3>新的对话</h3><span className="muted">{name} · {labels[session.state]}</span></div>}
+        {!session.messages.length && <div className="chat-empty"><span className="agent-mark"><MessageSquare size={25} /></span><h3>{sessionUnavailable ? `${name} 未就绪` : "新的对话"}</h3><span className="muted">{sessionUnavailable ? sessionProvider?.reason ?? "当前客户端未安装或未连接" : `${name} · ${labels[session.state]}`}</span>
+          {sessionUnavailable && fallbackProvider && <button type="button" className="secondary" disabled={pending} onClick={() => { void action(async () => { const created = await request("sessionNew", { providerId: fallbackProvider.id }); await request("connect", { sessionId: created.id }); }); }}>改用 {fallbackProvider.name} 开始</button>}
+        </div>}
         {visibleMessages.map(message => <ChatMessage key={message.id} message={message} agent={name} sessionId={session.id} onReuse={reuse} onError={onError} />)}
         {session.error && <div className="session-error" role="status">{session.error}</div>}
         {busy && <div className="working"><LoaderCircle size={14} className="spin" />{name} · {labels[session.state]}</div>}

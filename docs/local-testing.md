@@ -24,13 +24,28 @@
 - `~/Library/Application Support/Google/Chrome for Testing/NativeMessagingHosts/io.beehelper.codex.json`
 - `~/Library/Application Support/Chromium/NativeMessagingHosts/io.beehelper.codex.json`
 
-连接器调用当前安装的 Node 与 Codex。它不修改 Codex 全局配置，不复制登录凭据；仅为自身 App Server 进程注入 BeeHelper MCP 配置。工作目录自动放在 `~/.local/share/beehelper/workspace`，不是微应用源码存储。
+Linux 对应位置：
+
+- `~/.config/google-chrome/NativeMessagingHosts/io.beehelper.codex.json`
+- `~/.config/chromium/NativeMessagingHosts/io.beehelper.codex.json`
+
+**注册或移动项目后要完全退出并重启浏览器**，只在 `chrome://extensions/` 点“重新加载”不会重新扫描 Native Messaging 清单。安装器会读取 PATH、`~/.local/bin` 等目录来发现 `codex`、`claude`、`dsh`；只有实际发现的客户端才会显示为“可连接”。也可以在执行安装器时用 `BEEHELPER_CODEX`、`BEEHELPER_CLAUDE`、`BEEHELPER_DSH` 指定绝对路径。
+
+连接器调用当前安装的 Node 与本地 Agent（Codex App Server 或 ACP）。它不修改 Codex 全局配置，不复制登录凭据；仅为自身 App Server 进程注入 BeeHelper MCP 配置。工作目录自动放在 `~/.local/share/beehelper/workspace`，不是微应用源码存储。
 
 该进程预先批准 BeeHelper 自有 MCP 工具，以支持已确认的直接创作与运行体验；不会改变其他客户端的工具授权。额外的本机命令、文件修改或未知交互审批不会被连接器自动接受。
 
-移动项目目录、切换 Node 或 Codex 路径后重新执行 `npm run setup:native`。可通过 `BEEHELPER_CODEX` 指定需要连接的 Codex 可执行文件。
+移动项目目录、切换 Node 或客户端路径后重新执行 `npm run setup:native`。
 
-`npm run doctor` 验证进程握手、版本和登录状态，但不验证浏览器是否加载扩展，也不发送模型请求。
+`npm run doctor` 验证进程握手、版本和登录状态，但不验证浏览器是否加载扩展，也不发送模型请求。按客户端运行：
+
+```sh
+npm run doctor -- --agent codex
+npm run doctor -- --agent claude
+npm run doctor -- --agent dsh
+```
+
+Linux 上已实际验证 Claude Code 与 DeepSeek Harness 的 ACP 握手和模型列表；Codex 未安装时不影响这两者，但需要在新对话里选中它们，而不是继续使用默认的 Codex 会话。
 
 ## 3. 第一次验证
 
@@ -78,7 +93,10 @@ E2E 启动器在 `tests/e2e/harness.ts`，支持 Linux / macOS / Windows：
 
 | 现象 | 检查 |
 | --- | --- |
-| 找不到本地消息传递 host | 运行 `npm run setup:native`，检查项目是否移动，扩展 ID 是否一致 |
+| 找不到本地消息传递 host | 运行 `npm run setup:native`，检查项目是否移动、扩展 ID 是否一致，然后完全重启 Chrome |
+| 刚运行 setup:native 仍连不上 | 只刷新扩展不够；Native Messaging 清单在浏览器启动时读取，需完全退出并重启 |
+| 下拉里显示 Codex 未就绪 | 本机没有 Codex；在新对话下拉选择 Claude Code 或 DSH，或使用“改用 … 开始”按钮 |
+| Linux 上装的是 Chromium 而不是 Chrome | 安装器同时写入 `~/.config/chromium`；若用 Chrome for Testing 等其他浏览器，需把清单放到对应配置目录 |
 | 页面脚本不可用 | 在扩展详情打开“允许运行用户脚本”，再刷新工作台的目标页面 |
 | 目标页面列表为空 | 打开 HTTP/HTTPS 业务页；浏览器设置页、扩展页不能作为业务脚本目标 |
 | Codex 未登录 | 先在终端执行 `codex login`，再检查连接；不要把凭据写入源码 |

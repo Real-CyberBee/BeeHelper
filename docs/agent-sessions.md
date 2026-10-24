@@ -21,13 +21,15 @@ npm run setup:native
 | 插件 | 当前实现 | 本机验证边界 |
 | --- | --- | --- |
 | Codex | 原生 App Server；恢复、模型列表、逐轮模型选择、steer、停止、MCP | 真实握手；其他执行验证以验证记录为准 |
-| Claude Code | 官方 ACP TypeScript SDK + `claude-agent-acp`；模型配置、恢复、协商 steering、授权、MCP | 真实握手与配置目录；不等于完整模型生成验收 |
-| DeepSeek Harness | `dsh --profile acp`；模型配置、恢复、停止、MCP | 真实握手；本机未声明 steering，使用队列 |
+| Claude Code | 官方 ACP TypeScript SDK + `claude-agent-acp`；模型配置、恢复、协商 steering、授权、MCP | macOS 真实握手；Linux（Chrome 152 + Claude Code 2.1.289）扩展内连接与模型列表通过；不等于完整模型生成验收 |
+| DeepSeek Harness | `dsh --profile acp`；模型配置、恢复、停止、MCP | macOS/Linux 真实握手（Linux：DSH 0.2.0-rc.2，3 个模型）；未声明 steering，使用队列 |
 | CodeBuddy Code | 独立 CLI `--acp` 接入入口 | 未找到可单独启动的独立 CLI，未完成握手；不将 WorkBuddy 附带文件直接当作可用安装 |
 | WorkBuddy | 安装检测、未就绪原因 | 未实现官方 Open API 适配；不读取桌面私有凭据，不伪报已连接 |
 | 自定义 ACP | 忽略目录中的本机插件配置 | 随具体实现协商能力，未做全部客户端验收 |
 
 连接器兼容保留原 Native Messaging 名称 `io.beehelper.codex`，因此现有扩展 ID 和注册路径不变；名称不再意味着只能连接 Codex。
+
+Linux 注册文件在 `~/.config/google-chrome|chromium/NativeMessagingHosts/`，macOS 在 `~/Library/Application Support/...`。注册后必须完全重启浏览器；只刷新扩展不会重新读取清单。
 
 安装器发现 PATH、用户 `.local/bin`、常见系统目录及 nvm Node 版本目录下的可执行文件。可在执行安装器时用 `BEEHELPER_CODEX`、`BEEHELPER_CLAUDE`、`BEEHELPER_DSH`、`BEEHELPER_CODEBUDDY` 指定绝对路径。安装器只保存可执行文件路径，不复制认证材料。JS 启动器优先使用同一 bin 目录中的 Node，避免 dsh 被不兼容的宿主 Node 静默跳过。
 
