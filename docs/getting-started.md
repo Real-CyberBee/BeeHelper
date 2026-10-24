@@ -4,7 +4,7 @@
 
 ## 普通用户安装
 
-1. 从项目维护者取得与 CPU 架构匹配的 DMG。打开后双击 **BeeHelper Installer.app**，选择“安装 / 修复”。安装器使用 macOS 自带的 JavaScriptCore、Foundation 和 CryptoKit，不包含 Node、npm 或 node_modules，不需要额外安装运行时、终端、源码仓库或管理员权限。
+1. 从 [GitHub Release](https://github.com/Real-CyberBee/BeeHelper/releases/tag/v0.5.1) 下载与 CPU 架构匹配的 DMG（v0.5.1 提供 Apple Silicon arm64）。打开后双击 **BeeHelper Installer.app**，选择“安装 / 修复”。安装器使用 macOS 自带的 JavaScriptCore、Foundation 和 CryptoKit，不包含 Node、npm 或 node_modules，不需要额外安装运行时、终端、源码仓库或管理员权限。
 2. 安装完成后 Finder 会打开 `extension` 文件夹。在 Chrome 扩展页面开启开发者模式，点“加载已解压的扩展”，选择该文件夹。当前尚未上架扩展商店，这是预览版的浏览器安装步骤。
 3. 在 BeeHelper 扩展详情启用“允许用户脚本”。打开工具栏 BeeHelper 图标，首次使用向导会检查环境；也可从右上角“设置”重新打开。
 4. 不连接 AI 也可以运行已有微应用。在示例画廊添加并试用“批量文本整理”，输入几行重复文本，点击“去重并整理”，确认结果。
@@ -71,3 +71,7 @@ GitHub Actions 的 Verify BeeHelper 工作流默认执行类型、单元、构�
 特权服务随扩展静态打包；页面与普通用户微应用不能调用向导完成、诊断、扩展管理等系统服务。向导卸载时释放 React 状态与焦点；加载失败显示恢复出口，不影响本地库。数据状态仍由宿主存储管理。它不是从远程下载安装到特权上下文的脚本，也不会出现在可删除的普通候选列表中。
 
 后续系统微应用遵循 [registry](../src/system-apps/registry.ts) 的共同契约，宿主更新和内核权限校验不交给第三方源码。
+
+## 官网维护
+
+官网位于 `site/`，采用 CyberBee 官方 Logo 与扁平布局，不依赖扩展运行环境。推送 `site/**` 或 Pages 工作流变更到 main 后，`.github/workflows/pages.yml` 会自动部署到 [GitHub Pages](https://real-cyberbee.github.io/BeeHelper/)。版本下载链接应与实际公开 Release 保持一致。

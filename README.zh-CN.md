@@ -1,5 +1,7 @@
 # BeeHelper
 
+[官网 / Website](https://real-cyberbee.github.io/BeeHelper/) · [下载 / Releases](https://github.com/Real-CyberBee/BeeHelper/releases)
+
 [English](README.md) | 简体中文
 
 浏览器侧边栏 AI 微应用工作台。借鉴 Tampermonkey 的脚本自由度，以浏览器环境下的 everything-is-a-plugin 为设计理念，通过本地插件连接 Codex、Claude Code 和 DeepSeek Harness。

@@ -1,5 +1,7 @@
 # BeeHelper
 
+[官网 / Website](https://real-cyberbee.github.io/BeeHelper/) · [下载 / Releases](https://github.com/Real-CyberBee/BeeHelper/releases)
+
 English | [简体中文](README.zh-CN.md)
 
 An AI microapp workbench in the browser sidebar. Inspired by Tampermonkey's scripting freedom and the everything-is-a-plugin architecture, BeeHelper lets you create, preview, install, and refine browser microapps through external coding agents. Local adapters connect Codex, Claude Code, and DeepSeek Harness.
