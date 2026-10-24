@@ -22,7 +22,8 @@ test.describe.serial("会话工作台：真实扩展与协议夹具，不调用�
     context = await launchExtensionContext(directory, { extension: path.resolve("dist") });
     await waitForServiceWorker(context);
     page = await context.newPage(); await page.goto(`chrome-extension://${extensionId}/index.html`);
-    await expect(page.getByRole("heading", { name: "AI 会话" })).toBeVisible();
+    await page.getByRole("dialog", { name: "首次使用与诊断" }).getByRole("button", { name: "开始使用微应用" }).click();
+    await expect(page.getByLabel("打开会话列表")).toBeVisible();
   });
   test.afterAll(async () => { await context?.close(); if (directory) await rm(directory, { recursive: true, force: true }); });
   test("运行中切换会话不停止原任务，也不串入其他会话", async () => {
@@ -36,6 +37,7 @@ test.describe.serial("会话工作台：真实扩展与协议夹具，不调用�
     await page.getByRole("button", { name: "发送", exact: true }).click();
     await expect(page.getByRole("region", { name: "会话消息" })).toContainText("fixture:answer");
     await expect.poll(async () => (await rpc("state")).db.sessions.find((item: any) => item.id === first).state).toBe("running");
+    await page.getByLabel("打开会话列表").click();
     await page.getByRole("button", { name: "切换会话：hold-test", exact: true }).click();
     await expect(page.getByRole("region", { name: "会话消息" })).toContainText("fixture:hold-test");
     await expect(page.getByRole("region", { name: "会话消息" })).not.toContainText("other-session");
@@ -80,19 +82,21 @@ test.describe.serial("会话工作台：真实扩展与协议夹具，不调用�
     await expect.poll(async () => (await rpc("state")).connector.busy).toBe(true);
     await page.getByLabel("消息投递方式").selectOption("steer");
     await page.getByLabel("新对话", { exact: true }).click();
-    await expect(page.getByLabel("消息投递方式")).toHaveValue("queue");
-    await expect(page.getByLabel("消息投递方式").locator('option[value="steer"]')).toBeDisabled();
+    await expect(page.getByLabel("消息投递方式")).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "会话消息" })).not.toContainText("hold-test");
     await rpc("cancel", { sessionId: previous });
     await expect.poll(async () => (await rpc("state")).db.sessions.find((item: any) => item.id === previous).state).toBe("idle");
   });
   test("会话归档可恢复，窄侧边栏没有文本溢出", async () => {
     const old = (await rpc("state")).db.activeSessionId;
     const session = (await rpc("state")).db.sessions.find((item: any) => item.id === old);
+    await page.getByLabel("打开会话列表").click();
     await page.getByRole("button", { name: `归档会话：${session.title}`, exact: true }).click();
     await page.getByRole("checkbox", { name: "归档", exact: true }).check();
     await page.getByRole("button", { name: `恢复归档：${session.title}`, exact: true }).click();
     await page.getByRole("checkbox", { name: "归档", exact: true }).uncheck();
     await page.getByRole("button", { name: `切换会话：${session.title}`, exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "会话列表", exact: true })).toHaveCount(0);
     for (const width of [420, 360]) {
       await page.setViewportSize({ width, height: 900 });
       await page.getByRole("button", { name: "AI 会话", exact: true }).click();
@@ -229,11 +233,13 @@ test.describe.serial("会话工作台：真实扩展与协议夹具，不调用�
     await expect(page.locator(".message.assistant img")).toHaveCount(0);
     expect(remoteImages).toBe(0);
     await expect.poll(async () => (await rpc("state")).connector.busy).toBe(false);
+    await page.getByLabel("更多会话操作").click();
     await page.getByLabel("搜索消息", { exact: true }).click();
     await page.getByLabel("搜索当前会话消息").fill("no-such-message");
     await expect(page.locator(".messages .message")).toHaveCount(0);
     await page.getByLabel("关闭消息搜索").click();
     await expect(page.locator(".message.assistant table")).toBeVisible();
+    await page.getByLabel("更多会话操作").click();
     const downloadPromise = page.waitForEvent("download"); await page.getByLabel("导出会话", { exact: true }).click();
     const download = await downloadPromise; const exported = JSON.parse(await readFile((await download.path())!, "utf8"));
     expect(exported.format).toBe("beehelper.conversation"); expect(exported.messages.some((item: any) => item.text === "markdown-test")).toBe(true);
@@ -249,11 +255,49 @@ test.describe.serial("会话工作台：真实扩展与协议夹具，不调用�
   test("连接期间的授权也能回答，不会被全局连接中状态锁死", async () => {
     await page.setViewportSize({ width: 1440, height: 960 });
     await rpc("sessionNew", { providerId: "fixture-acp-permission" });
+    await page.getByLabel("更多会话操作").click();
     await page.getByLabel("连接或恢复会话", { exact: true }).click();
     await expect(page.getByLabel("Agent 授权请求", { exact: true })).toContainText("测试连接授权");
     await expect(page.getByRole("button", { name: "允许本次", exact: true })).toBeEnabled();
     await page.getByRole("button", { name: "允许本次", exact: true }).click();
     await expect.poll(async () => (await rpc("state")).connector.ready).toBe(true);
     await expect(page.getByLabel("Agent 授权请求", { exact: true })).toHaveCount(0);
+  });
+  test("会话优先布局：历史按需展开，窄屏和桌面保持充足消息空间", async () => {
+    await rpc("sessionNew", { providerId: "codex" });
+    await page.getByLabel("发送给 Codex").fill("markdown-test");
+    await page.getByRole("button", { name: "发送", exact: true }).click();
+    await expect(page.locator(".message.assistant table")).toBeVisible();
+    await expect.poll(async () => (await rpc("state")).connector.busy).toBe(false);
+    for (const size of [{ width: 360, height: 740 }, { width: 480, height: 850 }, { width: 1440, height: 960 }]) {
+      await page.setViewportSize(size);
+      if (size.width < 701) await page.getByRole("button", { name: "AI 会话", exact: true }).click();
+      await expect(page.getByLabel("搜索会话")).toHaveCount(0);
+      const bounds = await page.getByRole("region", { name: "会话消息" }).boundingBox();
+      expect(bounds!.height).toBeGreaterThan(size.height * .6);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      const model = await page.getByLabel("模型", { exact: true }).boundingBox();
+      const send = await page.getByRole("button", { name: "发送", exact: true }).boundingBox();
+      expect(model!.width).toBeGreaterThan(50);
+      expect(model!.x + model!.width).toBeLessThanOrEqual(send!.x);
+      await page.screenshot({ path: `.local/screenshots/chat-focused-${size.width}.png` });
+      await page.getByLabel("打开会话列表").click();
+      await expect(page.getByRole("dialog", { name: "会话列表", exact: true })).toBeVisible();
+      await expect(page.getByLabel("搜索会话")).toBeFocused();
+      await page.getByLabel("搜索会话").fill("no-such-session");
+      await expect(page.getByText("未找到会话", { exact: true })).toBeVisible();
+      await page.getByLabel("创建会话", { exact: true }).focus();
+      await page.keyboard.press("Tab");
+      await expect(page.getByLabel("关闭会话列表")).toBeFocused();
+      await page.keyboard.press("Shift+Tab");
+      await expect(page.getByLabel("创建会话", { exact: true })).toBeFocused();
+      await page.screenshot({ path: `.local/screenshots/chat-drawer-${size.width}.png` });
+      await page.keyboard.press("Escape");
+      await expect(page.getByLabel("打开会话列表")).toBeFocused();
+      await page.getByLabel("更多会话操作").click();
+      await expect(page.getByLabel("导出会话", { exact: true })).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(page.getByLabel("导出会话", { exact: true })).toHaveCount(0);
+    }
   });
 });

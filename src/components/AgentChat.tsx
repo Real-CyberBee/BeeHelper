@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Archive, ArrowDown, ArrowUp, Check, ChevronDown, Download, Info, MessageSquare, Pencil, Plug, Plus, Search, Send, Trash2, X, LoaderCircle } from "lucide-react";
+import { ArrowDown, Check, Download, Info, MessageSquare, MoreHorizontal, PanelLeft, Pencil, Plug, Plus, Search, Send, Trash2, X, LoaderCircle } from "lucide-react";
 import type { Database } from "../core/model";
 import { activeSession, sessionBusy, type AgentProvider, type DeliveryMode } from "../core/sessions";
 import { extensionMode, request } from "../client";
 import { useChatDrafts } from "../agents/use-chat-drafts";
 import { ChatComposer, type ChatComposerHandle } from "./ChatComposer";
 import { ChatMessage } from "./ChatMessage";
+import { SessionDrawer } from "./SessionDrawer";
 import { commandToken } from "../core/chat-content";
 import type { ChatMessage as Message } from "../core/model";
 
@@ -23,8 +24,8 @@ export function AgentChat({ database, providers, context, contextLabel, refresh,
   const sessionUnavailable = Boolean(session && providers.length > 0 && sessionProvider && !sessionProvider.available);
   const fallbackProvider = usableProviders[0];
   const [providerId, setProviderId] = useState("codex");
-  const [search, setSearch] = useState("");
-  const [archived, setArchived] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false), [toolsOpen, setToolsOpen] = useState(false);
+  const tools = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<DeliveryMode>("queue");
   const [pending, setPending] = useState(false);
   const [answering, setAnswering] = useState(false);
@@ -50,6 +51,14 @@ export function AgentChat({ database, providers, context, contextLabel, refresh,
   }, [providers, providerId]);
   useEffect(() => { setMode("queue"); }, [session?.id, session?.capabilities.steer]);
   useEffect(() => { setFollowing(true); setShowSearch(false); setMessageSearch(""); }, [session?.id]);
+  useEffect(() => { if (session) setProviderId(session.providerId); }, [session?.providerId]);
+  useEffect(() => {
+    if (!toolsOpen) return;
+    const close = (event: PointerEvent) => { if (!tools.current?.contains(event.target as Node)) setToolsOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { setToolsOpen(false); tools.current?.querySelector<HTMLButtonElement>("button")?.focus(); } };
+    document.addEventListener("pointerdown", close); document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", close); document.removeEventListener("keydown", escape); };
+  }, [toolsOpen]);
   async function send() {
     if (!session || pending || !extensionMode || ["unknown", "stopping"].includes(session.state)) return;
     const id = session.id, snapshot = structuredClone(drafts.get(session.id));
@@ -84,41 +93,22 @@ export function AgentChat({ database, providers, context, contextLabel, refresh,
   }
   return <aside className="chat" onDragOver={event => { if (event.dataTransfer.types.includes("Files")) event.preventDefault(); }} onDrop={event => { if (event.dataTransfer.files.length) { event.preventDefault(); void composer.current?.addFiles([...event.dataTransfer.files]); } }}>
     <div className="chat-heading">
-      <h2><MessageSquare size={17} />AI 会话</h2>
-      <div className="session-create">
-        <select aria-label="新会话客户端" value={providerId} onChange={event => setProviderId(event.target.value)}>
-          {(providers.length ? providers : [{ id: "codex", name: "Codex", available: true }]).map(provider => <option key={provider.id} value={provider.id} disabled={!provider.available}>{provider.name}{!provider.available ? " · 未就绪" : ""}</option>)}
-        </select>
-        <button type="button" className="icon-button" aria-label="新对话" title={providers.length > 0 && !usableProviders.length ? "没有可连接的本地客户端" : "新对话"} disabled={pending || (providers.length > 0 && !usableProviders.length)} onClick={() => { void action(() => request("sessionNew", { providerId })); }}><Plus size={17} /></button>
-      </div>
+      <button type="button" className="icon-button" aria-label="打开会话列表" title="会话列表" aria-expanded={historyOpen} onClick={() => setHistoryOpen(true)}><PanelLeft size={18} /></button>
+      <div className="chat-heading-copy"><h2 title={session?.title}>{session?.title || "AI 会话"}</h2><span><i className={`status-dot ${["disconnected", "unknown"].includes(session?.state ?? "") ? "offline" : "online"}`} />{name} · {session?.permission ? "等待授权" : labels[session?.state ?? "disconnected"]}</span></div>
+      <button type="button" className="icon-button" aria-label="新对话" title={providers.length > 0 && !usableProviders.length ? "没有可连接的本地客户端" : `新对话 · ${name}`} disabled={pending || (providers.length > 0 && !usableProviders.length)} onClick={() => { void action(() => request("sessionNew", { providerId })); }}><Plus size={18} /></button>
+      {session && <div className="chat-tools" ref={tools} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setToolsOpen(false); }}>
+        <button type="button" className="icon-button" title="更多会话操作" aria-label="更多会话操作" aria-expanded={toolsOpen} onClick={() => setToolsOpen(!toolsOpen)}><MoreHorizontal size={18} /></button>
+        {toolsOpen && <div className="chat-tools-menu" aria-label="会话操作">
+          <div className="chat-target"><span title={contextLabel}>{contextLabel ?? "本地工作空间"}</span>{typeof context.targetTabId === "number" && <small>网页 #{context.targetTabId}</small>}</div>
+          <button type="button" aria-label="搜索消息" onClick={() => { setShowSearch(true); setToolsOpen(false); }}><Search size={15} />搜索消息</button>
+          <button type="button" aria-label="导出会话" onClick={() => { exportConversation(); setToolsOpen(false); }}><Download size={15} />导出会话</button>
+          <button type="button" onClick={() => { setStatusOpen(true); setToolsOpen(false); }}><Info size={15} />会话状态</button>
+          <button type="button" title={sessionUnavailable ? "当前客户端未就绪，请新建对话并选择其他客户端" : "连接或恢复会话"} aria-label="连接或恢复会话" disabled={pending || busy || !extensionMode || sessionUnavailable} onClick={() => { setToolsOpen(false); void action(() => request("connect", { sessionId: session.id })); }}><Plug size={15} />连接或恢复会话</button>
+        </div>}
+      </div>}
     </div>
-    <details className="session-history" open>
-      <summary>会话 <span>{database.sessions?.filter(item => !item.archived).length ?? 0}</span><ChevronDown size={13} /></summary>
-      <div className="session-search"><Search size={13} /><input aria-label="搜索会话" placeholder="搜索会话" value={search} onChange={event => setSearch(event.target.value)} /><label><input type="checkbox" checked={archived} onChange={event => setArchived(event.target.checked)} />归档</label></div>
-      <div className="session-list">
-        {database.sessions?.filter(item => Boolean(item.archived) === archived && item.title.toLowerCase().includes(search.toLowerCase())).map(item => <div key={item.id} className={`session-row ${session?.id === item.id ? "selected" : ""}`}>
-          <button type="button" className="session-choice" aria-label={`切换会话：${item.title}`} disabled={item.archived} onClick={() => { void action(() => request("sessionSelect", { sessionId: item.id })); }}>
-            <strong>{item.title}</strong><small>{providers.find(provider => provider.id === item.providerId)?.name ?? item.providerId} · {item.permission ? "等待授权" : labels[item.state]}</small>
-          </button>
-          {item.archived ? <button type="button" className="icon-button" title="恢复归档" aria-label={`恢复归档：${item.title}`} onClick={() => { void action(() => request("sessionArchive", { sessionId: item.id, archived: false })); }}><ArrowUp size={14} /></button> : <>
-            <button type="button" className="icon-button" title="重命名会话" aria-label={`重命名会话：${item.title}`} onClick={() => {
-              const title = window.prompt("会话名称", item.title);
-              if (title?.trim()) void action(() => request("sessionRename", { sessionId: item.id, title }));
-            }}><Pencil size={13} /></button>
-            <button type="button" className="icon-button" title="归档会话" aria-label={`归档会话：${item.title}`} disabled={sessionBusy(item) || item.queue.length > 0} onClick={() => { void action(() => request("sessionArchive", { sessionId: item.id, archived: true })); }}><Archive size={13} /></button>
-          </>}
-        </div>)}
-      </div>
-    </details>
+    {historyOpen && <SessionDrawer database={database} providers={providers} providerId={providerId} pending={pending} labels={labels} onProviderChange={setProviderId} onAction={action} onClose={() => setHistoryOpen(false)} />}
     {session && <>
-      <div className="chat-context">
-        <span className={`status-dot ${["disconnected", "unknown"].includes(session.state) ? "offline" : ""}`} /><span title={session.title}>{name} · {labels[session.state]}</span>
-        <button type="button" className="icon-button" title="搜索消息" aria-label="搜索消息" onClick={() => { setShowSearch(!showSearch); if (showSearch) { setMessageSearch(""); setFollowing(true); } }}><Search size={14} /></button>
-        <button type="button" className="icon-button" title="导出会话" aria-label="导出会话" onClick={exportConversation}><Download size={14} /></button>
-        <button type="button" className="icon-button" title="会话状态" aria-label="会话状态" onClick={() => setStatusOpen(true)}><Info size={14} /></button>
-        <button type="button" className="icon-button" title={sessionUnavailable ? "当前客户端未就绪，请新建对话并选择其他客户端" : "连接或恢复会话"} aria-label="连接或恢复会话" disabled={pending || busy || !extensionMode || sessionUnavailable} onClick={() => { void action(() => request("connect", { sessionId: session.id })); }}><Plug size={14} /></button>
-      </div>
-      <div className="chat-target"><span>{contextLabel ?? "本地工作空间"}</span>{typeof context.targetTabId === "number" && <small>网页 #{context.targetTabId}</small>}</div>
       {showSearch && <div className="message-search"><Search size={13} /><input autoFocus aria-label="搜索当前会话消息" value={messageSearch} onChange={event => { setMessageSearch(event.target.value); setFollowing(false); }} /><span>{visibleMessages.length}</span><button type="button" className="icon-button" title="关闭消息搜索" aria-label="关闭消息搜索" onClick={() => { setShowSearch(false); setMessageSearch(""); setFollowing(true); }}><X size={13} /></button></div>}
       <div className="messages" role="region" aria-label="会话消息" onScroll={event => { const element = event.currentTarget; setFollowing(element.scrollHeight - element.scrollTop - element.clientHeight < 80); }}>
         {!session.messages.length && <div className="chat-empty"><span className="agent-mark"><MessageSquare size={25} /></span><h3>{sessionUnavailable ? `${name} 未就绪` : "新的对话"}</h3><span className="muted">{sessionUnavailable ? sessionProvider?.reason ?? "当前客户端未安装或未连接" : `${name} · ${labels[session.state]}`}</span>

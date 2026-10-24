@@ -1,3 +1,5 @@
+import { pageActivity, type PageActivity } from "./core/page-activity";
+import type { SetupSnapshot } from "./core/onboarding";
 import { createPluginHost } from "./core/plugins";
 import { applyOperation, current, findEntry, importPackage, matchesUrl, validateDefinition, type Database, type Operation, type Run } from "./core/model";
 import { createInitialDatabase } from "./core/samples";
@@ -11,6 +13,7 @@ import { importUserscript, searchUserscripts, type ScriptSort, type ScriptSource
 import { AgentSessionService } from "./agents/session-service";
 
 let db: Database;
+let activityFingerprint = "";
 let transaction: Promise<unknown> = Promise.resolve();
 let port: chrome.runtime.Port | undefined;
 let connector: ConnectorStatus = { connected: false };
@@ -34,7 +37,11 @@ async function mutate<T>(callback: (database: Database) => T): Promise<T> {
     syncChatProjection(updated);
     await chrome.storage.local.set({ database: updated });
     db = updated;
-    broadcast({ type: "database" });
+    const fingerprint = JSON.stringify([db.entries.map(entry => [entry.id, entry.installed, entry.enabled, entry.revisionId]), db.runs.map(run => [run.id, run.status, run.documentId])]);
+    const activityChanged = fingerprint !== activityFingerprint;
+    activityFingerprint = fingerprint;
+    broadcast({ type: "database", activityChanged });
+    if (activityChanged) scheduleBadges();
     return result;
   });
   transaction = next;
@@ -65,6 +72,45 @@ async function targetTabs() {
   const tabs = await chrome.tabs.query({});
   const focused = await chrome.windows.getLastFocused();
   return tabs.filter(tab => tab.id !== undefined && /^https?:/.test(tab.url ?? "")).map(tab => ({ id: tab.id!, title: tab.title ?? "", url: tab.url!, active: tab.active && tab.windowId === focused.id }));
+}
+async function getPageActivity(tabId?: number): Promise<PageActivity> {
+  await storeReady;
+  let scriptsAvailable = false;
+  try { await availableScripts(); scriptsAvailable = true; } catch {}
+  const unavailable = { available: false, scriptsAvailable, items: [] };
+  if (!Number.isInteger(tabId)) return unavailable;
+  try {
+    const tab = await chrome.tabs.get(tabId!);
+    const frame = await chrome.webNavigation.getFrame({ tabId: tabId!, frameId: 0 });
+    if (!tab.url || !/^https?:/.test(tab.url) || !frame?.documentId || frame.url !== tab.url) return unavailable;
+    return { available: true, scriptsAvailable, tabId, title: tab.title, url: tab.url, documentId: frame.documentId,
+      items: pageActivity(db, { tabId: tabId!, url: tab.url, documentId: frame.documentId }, [...activeRuns.values()], scriptsAvailable) };
+  } catch { return unavailable; }
+}
+let badgeTimer: ReturnType<typeof setTimeout> | undefined;
+function scheduleBadges() {
+  if (badgeTimer) return;
+  badgeTimer = setTimeout(() => {
+    badgeTimer = undefined;
+    void (async () => {
+      for (const tab of await targetTabs()) {
+        const activity = await getPageActivity(tab.id);
+        const count = activity.items.filter(item => item.state === "active" || item.state === "running").length;
+        await chrome.action.setBadgeText({ tabId: tab.id, text: count ? String(count) : "" });
+        await chrome.action.setBadgeBackgroundColor({ tabId: tab.id, color: "#b8790a" });
+      }
+    })().catch(() => {});
+  }, 200);
+}
+async function setupSnapshot(): Promise<SetupSnapshot> {
+  let scripts = false;
+  try { await availableScripts(); scripts = true; } catch {}
+  const { setupCompleted } = await chrome.storage.local.get("setupCompleted");
+  const base = { extension: true, version: chrome.runtime.getManifest().version, scripts, completed: setupCompleted === true };
+  try {
+    const result = await nativeRpc("diagnostics") as { version: string; providers: SetupSnapshot["providers"] };
+    return { ...base, connector: true, connectorVersion: result.version, providers: result.providers };
+  } catch { return { ...base, connector: false, providers: [], issue: "host-unavailable" }; }
 }
 async function stopApp(appId: string, tabId?: number) {
   for (const [key, active] of [...activeRuns]) {
@@ -106,9 +152,10 @@ async function runApp(appId: string, revisionId: string, tabId?: number, automat
     if (!frame?.documentId || frame.url !== tab.url || !definition.matches.some(pattern => matchesUrl(pattern, tab.url ?? ""))) throw new Error("目标文档已变化，请重新选择页面再运行");
     const active = { appId, runId: run.id, tabId: tabId!, url: tab.url!, revisionId, documentId: frame.documentId, clientId };
     activeRuns.set(key, active);
+    await mutate(database => { const record = database.runs.find(item => item.id === run.id); if (record) record.documentId = frame.documentId; });
     await chrome.userScripts.configureWorld({ messaging: true });
     const results = await chrome.userScripts.execute({ target: { tabId: tabId!, documentIds: [frame.documentId] }, js: [{ code: pageProgram({ appId, runId: run.id, definition }) }] });
-    active.documentId = results[0]?.documentId;
+    active.documentId = results[0]?.documentId ?? frame.documentId;
   } catch (error) {
     activeRuns.delete(key);
     await logRun(run.id, "error", String(error), "failed");
@@ -307,7 +354,8 @@ const agentSessions = new AgentSessionService({
 });
 const plugins = createPluginHost([
   { name: "local-library", services: { store: { mutate } } },
-  { name: "page-runtime", services: { runtime: { run: runApp, stop: stopApp } } },
+  { name: "page-runtime", services: { runtime: { run: runApp, stop: stopApp, activity: getPageActivity } } },
+  { name: "system-setup", services: { setup: { snapshot: setupSnapshot } } },
   { name: "agent-sessions", services: { agent: agentSessions } }
 ]);
 
@@ -315,6 +363,19 @@ async function handle(message: any, sender?: chrome.runtime.MessageSender): Prom
   await storeReady;
   if (agentSessions.accepts(message.type)) return plugins.get<AgentSessionService>("agent").handle(message);
   switch (message.type) {
+    case "setupSnapshot": case "setupComplete": case "setupStatus": case "openExtensionDetails": case "openInstallGuide": case "pageActivity": {
+      const url = sender?.url?.split(/[?#]/)[0];
+      if (!url || ![chrome.runtime.getURL("index.html"), chrome.runtime.getURL("sidepanel.html")].includes(url)) throw new Error("此能力仅对 BeeHelper 工作台开放");
+      if (message.type === "setupSnapshot") {
+        const snapshot = await plugins.get<{ snapshot: typeof setupSnapshot }>("setup").snapshot();
+        broadcast({ type: "targets" }); scheduleBadges(); return snapshot;
+      }
+      if (message.type === "setupStatus") return { completed: (await chrome.storage.local.get("setupCompleted")).setupCompleted === true };
+      if (message.type === "setupComplete") { await chrome.storage.local.set({ setupCompleted: true }); broadcast({ type: "setup" }); return true; }
+      if (message.type === "pageActivity") return plugins.get<{ activity: typeof getPageActivity }>("runtime").activity(message.tabId);
+      await chrome.tabs.create({ url: message.type === "openExtensionDetails" ? `chrome://extensions/?id=${chrome.runtime.id}` : "https://github.com/Real-CyberBee/BeeHelper/blob/main/docs/getting-started.md" });
+      return true;
+    }
     case "state": await transaction.catch(() => {}); return { db, connector: agentSessions.status(connector) };
     case "tabs": return targetTabs();
     case "scriptsStatus":
@@ -436,6 +497,21 @@ chrome.runtime.onUserScriptMessage.addListener((message, sender, reply) => {
   })().then(reply, error => reply({ error: String(error) }));
   return true;
 });
+chrome.webNavigation.onCommitted.addListener(details => {
+  if (details.frameId !== 0) return;
+  void chrome.action.setBadgeText({ tabId: details.tabId, text: "" }).catch(() => {});
+  void (async () => {
+    await storeReady;
+    for (const [key, active] of [...activeRuns]) if (active.tabId === details.tabId && active.documentId !== details.documentId) {
+      activeRuns.delete(key); await logRun(active.runId, "info", "目标文档已导航，旧实例已结束", "stopped");
+    }
+    broadcast({ type: "targets" }); scheduleBadges();
+  })();
+});
+chrome.tabs.onActivated.addListener(() => { broadcast({ type: "targets" }); scheduleBadges(); });
+chrome.tabs.onUpdated.addListener((_tabId, change) => { if (change.url || change.status === "complete") { broadcast({ type: "targets" }); scheduleBadges(); } });
 chrome.webNavigation.onHistoryStateUpdated.addListener(details => { if (details.frameId === 0) void reconcileTab(details.tabId, details.url); });
-chrome.tabs.onRemoved.addListener(tabId => { for (const [key, active] of activeRuns) if (active.tabId === tabId) { activeRuns.delete(key); void logRun(active.runId, "info", "目标标签页已关闭", "stopped"); } });
+chrome.tabs.onRemoved.addListener(tabId => { broadcast({ type: "targets" }); for (const [key, active] of activeRuns) if (active.tabId === tabId) { activeRuns.delete(key); void logRun(active.runId, "info", "目标标签页已关闭", "stopped"); } });
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+
+void storeReady.then(scheduleBadges);

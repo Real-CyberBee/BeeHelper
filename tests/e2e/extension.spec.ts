@@ -30,6 +30,7 @@ test.describe.serial("真实扩展本地闭环", () => {
     demo = await context.newPage(); await demo.goto("http://127.0.0.1:4173/demo.html?view=client");
     ui = await context.newPage(); ui.on("pageerror", error => errors.push(error.message)); await ui.goto(extensionUrl);
     await expect(ui.getByRole("heading", { name: "微应用库" })).toBeVisible();
+    await ui.getByRole("dialog", { name: "首次使用与诊断" }).getByRole("button", { name: "开始使用微应用" }).click();
     const tabs = await rpc(ui, "tabs");
     tabId = tabs.find((tab: any) => tab.url.includes("demo.html")).id;
     await mkdir(".local/screenshots", { recursive: true });

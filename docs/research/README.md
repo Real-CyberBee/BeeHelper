@@ -1,5 +1,9 @@
 # BeeHelper 运行时与 Agent 选型调研
 
+## 2026-10-24 产品生态与路线图
+
+新增[竞品、生态、技术趋势与资本兴趣调研](2026-10-24-competitive-ecosystem-research.md)，覆盖直接竞品 Sider Code、用户脚本生态、浏览器 Agent、协议与代表性融资公告。结论区分官方事实、推断和待验证建议；对应产品待办见[短中长期 TODO 路线图](../roadmap.md)。
+
 ## 2026-10-20 会话管理增补
 
 新增[多 Agent 会话管理调研与建议](session-management.md)、[开源复用候选](session-reuse-candidates.md)与[客户端兼容性核验](agent-client-compatibility.md)。重点是会话切换、运行中消息投递、模型配置，以及 Codex 原生协议和 ACP 的组合。它们是后续选型建议，不表示当前版本已经支持多客户端。

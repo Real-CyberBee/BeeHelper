@@ -1,3 +1,4 @@
+import capabilities from "../shared/capabilities.json";
 import { applyOperation, current, findEntry, importPackage, type Database, type Operation, type Run } from "./core/model";
 import { createInitialDatabase } from "./core/samples";
 import type { ConnectorStatus, Envelope } from "./core/protocol";
@@ -22,12 +23,18 @@ function saveWeb(db: Database) {
 }
 export async function request<T = any>(type: string, data: Record<string, unknown> = {}): Promise<T> {
   if (extensionMode) {
-    const response = await chrome.runtime.sendMessage({ channel: "bee:request", clientId, type, ...data }) as Envelope<T>;
+    const response = await chrome.runtime.sendMessage({ ...data, channel: "bee:request", clientId, type }) as Envelope<T>;
     if (!response?.ok) throw new Error(response?.error ?? "扩展没有响应");
     return response.data as T;
   }
   const db = loadWeb();
   if (type === "state") return { db, connector: { connected: false } as ConnectorStatus } as T;
+  if (type === "setupStatus") return { completed: localStorage.getItem("beehelper.setupCompleted") === "true" } as T;
+  if (type === "setupComplete") { localStorage.setItem("beehelper.setupCompleted", "true"); return true as T; }
+  if (type === "setupSnapshot") return { extension: false, version: capabilities.version, scripts: false, connector: false, providers: [], completed: localStorage.getItem("beehelper.setupCompleted") === "true" } as T;
+  if (type === "pageActivity") return { available: false, scriptsAvailable: false, items: [] } as T;
+  if (type === "openInstallGuide") { window.open("https://github.com/Real-CyberBee/BeeHelper/blob/main/docs/getting-started.md", "_blank", "noopener"); return true as T; }
+  if (type === "openExtensionDetails") throw new Error("请在安装扩展后打开浏览器扩展详情");
   if (type === "tabs") return [] as T;
   if (type === "scriptsStatus") return { available: false } as T;
   if (type === "providers") return [] as T;

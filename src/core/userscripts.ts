@@ -1,3 +1,4 @@
+import capabilities from "../../shared/capabilities.json";
 import { validateDefinition, type Definition } from "./model";
 
 /**
@@ -182,7 +183,7 @@ const __beeGM = await (async () => {
 })();
 const GM_info = {
   scriptHandler: "BeeHelper",
-  version: "0.4.0",
+  version: ${JSON.stringify(capabilities.version)},
   script: {
     name: ${JSON.stringify(meta.name ?? "")},
     namespace: ${JSON.stringify(meta.namespace ?? "")},

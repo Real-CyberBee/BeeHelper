@@ -1,6 +1,6 @@
 {
   "name": "beehelper",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,6 +9,8 @@
     "check": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts tests/*.test.mjs",
     "test:e2e": "playwright test",
+    "build:installer": "npm run build && node scripts/build-installer.mjs",
+    "test:installer": "node scripts/verify-installer.mjs",
     "setup:native": "node connector/install.mjs",
     "doctor": "node connector/doctor.mjs"
   },

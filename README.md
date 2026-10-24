@@ -4,6 +4,12 @@ English | [简体中文](README.zh-CN.md)
 
 An AI microapp workbench in the browser sidebar. Inspired by Tampermonkey's scripting freedom and the everything-is-a-plugin architecture, BeeHelper lets you create, preview, install, and refine browser microapps through external coding agents. Local adapters connect Codex, Claude Code, and DeepSeek Harness.
 
+## What’s New in 0.5.0
+
+- A self-contained macOS preview installer with a bundled Node runtime, stable connector registration, repair and uninstall. See [first-use and installation instructions](docs/getting-started.md) (Chinese). Developer ID signing, notarization and clean-machine distribution acceptance remain pending.
+- A first-use wizard and redacted diagnostics, delivered as the first non-removable built-in system microapp. AI connection is optional for running existing microapps.
+- A target-page activity panel and toolbar badge based on actual document-bound runtime instances, with matched, disabled, permission, completed and unknown states kept distinct.
+
 ## What's New in 0.4.0
 
 - **Honey-yellow light theme.** A warm, low-glare palette for the sidebar, the in-page launcher, the panel sandbox and the local demo site. The logo and extension icons come from the company site [cyberbee.top](https://cyberbee.top) (`/logo/bee-96.png`, `/logo/bee-512.png`); derived icons live in `public/icons/`.
@@ -106,6 +112,9 @@ On Windows the extension/UI cases run, while the fixture Native Messaging suite 
 
 Detailed project documents are currently in Chinese:
 
+- [First-use Wizard and macOS Preview Installer](docs/getting-started.md) (Chinese)
+- [Product Roadmap and TODO](docs/roadmap.md) (Chinese)
+- [Competitive and Ecosystem Research](docs/research/2026-10-24-competitive-ecosystem-research.md) (Chinese)
 - [Product Scope](docs/product.md)
 - [Architecture Draft](docs/architecture.md)
 - [Runtime and Agent Research](docs/research/README.md)

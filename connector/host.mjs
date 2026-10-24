@@ -35,7 +35,14 @@ sessions.socketPath = path.join(directory, "tools.sock");
 const broker = new ToolBroker({ sessions, emit });
 await broker.listen(sessions.socketPath);
 async function rpc(method, params = {}) {
-  if (method === "providers") return sessions.catalog();
+  if (method === "providers" || method === "diagnostics") {
+    const next = await discoverProviders();
+    await next.ready;
+    const previous = sessions.registry; sessions.registry = next;
+    await previous.close();
+    const providers = await sessions.catalog();
+    return method === "providers" ? providers : { version: capabilities.version, providers };
+  }
   if (method === "connect") return sessions.connect(params);
   if (method === "send") return sessions.send(params);
   if (method === "setModel") return sessions.setModel(params);

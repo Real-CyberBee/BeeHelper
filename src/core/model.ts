@@ -15,7 +15,7 @@ export type Definition = z.infer<typeof DefinitionSchema>;
 export interface Revision { id: string; createdAt: number; definition: Definition; source: string }
 export interface Entry { id: string; installed: boolean; enabled: boolean; favorite: boolean; revisionId: string; revisions: Revision[] }
 export type RunStatus = "running" | "active" | "succeeded" | "failed" | "stopped" | "unknown";
-export interface Run { id: string; appId: string; revisionId: string; title: string; tabId?: number; status: RunStatus; startedAt: number; logs: { time: number; level: string; text: string }[]; trial: boolean }
+export interface Run { id: string; appId: string; revisionId: string; title: string; tabId?: number; documentId?: string; status: RunStatus; startedAt: number; logs: { time: number; level: string; text: string }[]; trial: boolean }
 export interface ChatMessage {
   id: string; role: "user" | "assistant" | "tool" | "error"; text: string; time: number;
   delivery?: "queued" | "sending" | "sent" | "failed" | "unknown";

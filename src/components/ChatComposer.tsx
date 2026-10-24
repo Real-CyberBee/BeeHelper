@@ -60,7 +60,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(function ChatC
   }, [kind, session.id]);
   useEffect(() => {
     if (!textarea.current) return;
-    textarea.current.style.height = "auto"; textarea.current.style.height = `${Math.min(160, Math.max(72, textarea.current.scrollHeight))}px`;
+    textarea.current.style.height = "auto"; textarea.current.style.height = `${Math.min(160, Math.max(48, textarea.current.scrollHeight))}px`;
   }, [draft.text, session.id]);
   useEffect(() => {
     mounted.current = true;
@@ -143,7 +143,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(function ChatC
       {draft.references.length > 0 && <div className="draft-references">{draft.references.map(ref => <span key={`${ref.kind}:${ref.id}`} title={`${ref.kind} · ${ref.id}`}><AtSign size={11} /><strong>{ref.label}</strong><button type="button" className="icon-button" aria-label={`移除引用 ${ref.label}`} title="移除引用" onClick={() => update(session.id, value => ({ ...value, text: value.text.replace(`@${ref.label}`, ""), references: value.references.filter(item => `${item.kind}:${item.id}` !== `${ref.kind}:${ref.id}`) }))}><X size={11} /></button></span>)}</div>}
       {draft.attachments.length > 0 && <ChatAttachments items={draft.attachments} sessionId={session.id} onError={onError} onRemove={id => update(session.id, value => ({ ...value, attachments: value.attachments.filter(item => item.id !== id) }), true)} />}
       {displayedUploads.length > 0 && <div className="uploads" aria-label="附件上传进度">{displayedUploads.map(item => <div key={item.id}><span>{item.error ? item.error : `${item.file.name} · ${item.progress}%`}</span>{!item.error && <progress max={100} value={item.progress} />}{item.error && <button type="button" className="icon-button" title="重试上传" aria-label={`重试上传 ${item.file.name}`} onClick={() => { setUploads(current => current.filter(upload => upload.id !== item.id)); void addFiles([item.file]); }}><RotateCcw size={13} /></button>}<button type="button" className="icon-button" title="取消上传" aria-label={`取消上传 ${item.file.name}`} onClick={() => { item.controller.abort(); setUploads(current => current.filter(upload => upload.id !== item.id)); }}><X size={13} /></button></div>)}</div>}
-      <textarea ref={textarea} aria-label={`发送给 ${name}`} placeholder="描述任务或想要修改的地方…" aria-controls={showMenu ? menuId : undefined} aria-activedescendant={showMenu && candidates.length ? `${menuId}-${active}` : undefined} aria-expanded={showMenu} value={draft.text} onChange={event => { update(session.id, { ...draft, text: event.target.value }); setCursor(event.target.selectionStart); setManual(undefined); setDismissed(false); }} onSelect={event => setCursor(event.currentTarget.selectionStart)} rows={3}
+      <textarea ref={textarea} aria-label={`发送给 ${name}`} placeholder="描述任务或想要修改的地方…" aria-controls={showMenu ? menuId : undefined} aria-activedescendant={showMenu && candidates.length ? `${menuId}-${active}` : undefined} aria-expanded={showMenu} value={draft.text} onChange={event => { update(session.id, { ...draft, text: event.target.value }); setCursor(event.target.selectionStart); setManual(undefined); setDismissed(false); }} onSelect={event => setCursor(event.currentTarget.selectionStart)} rows={1}
         onPaste={event => {
           const files = [...event.clipboardData.files];
           const text = event.clipboardData.getData("text/plain");
@@ -173,33 +173,33 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(function ChatC
           }
           if (event.key === "Enter" && !event.shiftKey && (sendOnEnter || event.metaKey || event.ctrlKey)) { event.preventDefault(); void submit(); }
         }} />
-      <div className="session-model">
-        <select ref={modelPicker} aria-label="模型" value={session.model ?? session.appliedModel ?? ""} disabled={!session.capabilities.models || pending || ["disconnected", "unknown", "connecting"].includes(session.state)} onChange={event => { void onAction(() => request("sessionModel", { sessionId: session.id, model: event.target.value })); }}>
-          <option value="" disabled>默认模型</option>
-          {session.appliedModel && !session.models.some(model => model.id === session.appliedModel) && <option value={session.appliedModel}>{session.appliedModel}</option>}
-          {session.models.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
-        </select>
-        {session.model && session.model !== session.appliedModel && <small>下一轮</small>}
-        <button type="button" className="icon-button" title="会话配置" aria-label="会话配置" onClick={() => setConfig(!config)}><Settings2 size={14} /></button>
-      </div>
-      {config && <div className="chat-config" aria-label="会话配置选项">
-        <label>发送方式<select aria-label="发送方式" value={sendOnEnter ? "enter" : "modified"} onChange={event => { const value = event.target.value === "enter"; setSendOnEnter(value); localStorage.setItem("beehelper.enterSend", String(value)); }}><option value="enter">Enter</option><option value="modified">Ctrl / Cmd + Enter</option></select></label>
-        {extraOptions.map(option => <label key={option.id}>{option.name}{option.type === "boolean"
-          ? <input type="checkbox" aria-label={option.name} checked={Boolean(session.nextConfig?.[option.id] ?? option.currentValue)} disabled={pending} onChange={event => { void onAction(() => request("sessionConfig", { sessionId: session.id, configId: option.id, value: event.target.checked })); }} />
-          : <select aria-label={option.name} value={option.options?.some(item => item.value === String(session.nextConfig?.[option.id] ?? option.currentValue)) ? String(session.nextConfig?.[option.id] ?? option.currentValue) : ""} disabled={pending} onChange={event => { void onAction(() => request("sessionConfig", { sessionId: session.id, configId: option.id, value: event.target.value })); }}><option value="" disabled>默认</option>{option.options?.map(item => <option key={item.value} value={item.value}>{item.name}</option>)}</select>}{session.nextConfig?.[option.id] !== undefined && <small>下一轮</small>}</label>)}
-      </div>}
       <div className="composer-actions">
         <div className="composer-tools">
           <button type="button" className="icon-button" title="添加附件" aria-label="添加附件" onClick={() => picker.current?.click()} disabled={!extensionMode}><Paperclip size={15} /></button>
           <button type="button" className="icon-button" title="引用上下文" aria-label="引用上下文" onClick={() => { setManual("reference"); setDismissed(false); textarea.current?.focus(); }}><AtSign size={15} /></button>
           <button type="button" className="icon-button" title="命令" aria-label="命令" onClick={() => { setManual("command"); setDismissed(false); textarea.current?.focus(); }}><Slash size={15} /></button>
         </div>
-        <select aria-label="消息投递方式" value={mode} onChange={event => setMode(event.target.value as DeliveryMode)} disabled={!busy}><option value="queue">{busy ? "排队" : "发送"}</option><option value="steer" disabled={!session.capabilities.steer}>插话</option></select>
+        <div className="session-model">
+        <select ref={modelPicker} aria-label="模型" value={session.model ?? session.appliedModel ?? ""} disabled={!session.capabilities.models || pending || ["disconnected", "unknown", "connecting"].includes(session.state)} onChange={event => { void onAction(() => request("sessionModel", { sessionId: session.id, model: event.target.value })); }}>
+          <option value="" disabled>默认模型</option>
+          {session.appliedModel && !session.models.some(model => model.id === session.appliedModel) && <option value={session.appliedModel}>{session.appliedModel}</option>}
+          {session.models.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
+        </select>
+        {session.model && session.model !== session.appliedModel && <small>下一轮</small>}
+        </div>
+        <button type="button" className="icon-button" title="会话配置" aria-label="会话配置" aria-expanded={config} onClick={() => setConfig(!config)}><Settings2 size={14} /></button>
         <div className="composer-buttons">
           {busy && <button type="button" className="icon-button" title={`停止 ${name}`} aria-label={`停止 ${name}`} disabled={pending || session.state !== "running"} onClick={() => { void onAction(() => request("cancel", { sessionId: session.id })); }}><Square size={15} /></button>}
           <button type="submit" className="send-button" disabled={(!draft.text.trim() && !draft.attachments.length && !draft.references.length) || pending || isUploading || displayedUploads.some(item => item.error) || !extensionMode || (["stopping", "unknown"].includes(session.state) && !localCommand(commandToken(draft.text)?.name ?? "", session.commands))} aria-label="发送">{pending ? <LoaderCircle size={15} className="spin" /> : <Send size={16} />}</button>
         </div>
       </div>
+      {busy && <div className="delivery-options"><select aria-label="消息投递方式" value={mode} onChange={event => setMode(event.target.value as DeliveryMode)}><option value="queue">排队</option><option value="steer" disabled={!session.capabilities.steer}>插话</option></select></div>}
+      {config && <div className="chat-config" aria-label="会话配置选项">
+        <label>发送方式<select aria-label="发送方式" value={sendOnEnter ? "enter" : "modified"} onChange={event => { const value = event.target.value === "enter"; setSendOnEnter(value); localStorage.setItem("beehelper.enterSend", String(value)); }}><option value="enter">Enter</option><option value="modified">Ctrl / Cmd + Enter</option></select></label>
+        {extraOptions.map(option => <label key={option.id}>{option.name}{option.type === "boolean"
+          ? <input type="checkbox" aria-label={option.name} checked={Boolean(session.nextConfig?.[option.id] ?? option.currentValue)} disabled={pending} onChange={event => { void onAction(() => request("sessionConfig", { sessionId: session.id, configId: option.id, value: event.target.checked })); }} />
+          : <select aria-label={option.name} value={option.options?.some(item => item.value === String(session.nextConfig?.[option.id] ?? option.currentValue)) ? String(session.nextConfig?.[option.id] ?? option.currentValue) : ""} disabled={pending} onChange={event => { void onAction(() => request("sessionConfig", { sessionId: session.id, configId: option.id, value: event.target.value })); }}><option value="" disabled>默认</option>{option.options?.map(item => <option key={item.value} value={item.value}>{item.name}</option>)}</select>}{session.nextConfig?.[option.id] !== undefined && <small>下一轮</small>}</label>)}
+      </div>}
     </form>
     <input ref={picker} hidden type="file" multiple aria-label="附件文件" onChange={event => { const files = [...event.target.files ?? []]; event.target.value = ""; if (files.length && token?.kind === "reference") replaceToken(""); void addFiles(files); }} />
   </div>;

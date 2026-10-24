@@ -4,6 +4,8 @@
 
 ## 当前交互
 
+- 默认以当前会话为主，顶部只保留标题、客户端状态、新建和更多操作；历史会话通过左侧抽屉打开，支持搜索、归档、重命名和选择客户端创建会话。切换后自动收起，Esc 或点击遮罩可关闭。
+- 消息搜索、导出、状态详情及连接操作收进更多菜单，当前微应用和目标页面信息在菜单顶部查看。模型、附件、引用和命令集中在输入框底部；配置按需展开，排队/插话仅运行中显示，授权请求仍直接呈现。
 - 输入 `/` 或点击命令图标，检索当前可用命令；方向键选择，Enter/Tab 插入，Esc 关闭。
 - 输入 `@` 或点击引用图标，选择微应用、当前浏览器页面、Codex 技能或本地文件。重名微应用会显示安装状态和短 ID，页面显示 tab ID。
 - 回车发送、Shift+Enter 换行；输入法正在组合文字时不发送。可在配置中改用 Ctrl/Cmd+Enter。
@@ -101,6 +103,7 @@ ACP 下拉/开关从真实 `configOptions` 构造，包括客户端给出的模�
 - `src/core/chat-content.ts`：富内容类型、大小校验、补全词法、命令识别。
 - `src/core/chat-commands.ts`：本地命令和客户端命名空间冲突处理。
 - `src/components/ChatComposer.tsx`：输入、菜单、键盘、拖拽与上传交互。
+- `src/components/SessionDrawer.tsx`：按需挂载的会话导航与管理，独立维护检索状态、键盘焦点约束和关闭后的焦点恢复。
 - `src/components/ChatMessage.tsx`、`MarkdownMessage.tsx`、`ChatAttachments.tsx`：展示；Markdown 懒加载，不拖慢微应用库首屏。
 - `src/agents/attachment-client.ts`、`use-chat-drafts.ts`：传输与草稿持久化，不把 File/原始字节塞进聊天索引。
 - `connector/attachments.mjs`：可注入的本地附件存储；`connector/content.mjs`：按原生协议编排内容。

@@ -10,6 +10,9 @@ import { DemoGallery } from "./components/DemoGallery";
 import { ScriptMarket, type ImportedScript } from "./components/ScriptMarket";
 import { demos, type Demo } from "./core/demos";
 import { activeSession, sessionBusy, type AgentProvider } from "./core/sessions";
+import { PageActivityPanel } from "./components/PageActivityPanel";
+import { SystemAppHost } from "./system-apps/SystemAppHost";
+import { setupApp } from "./system-apps/registry";
 import "./style.css";
 
 const stamp = (time: number) => new Date(time).toLocaleString("zh-CN", { hour12: false, month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -68,6 +71,7 @@ function App() {
   const [providers, setProviders] = useState<AgentProvider[]>([]);
   const [providersLoaded, setProvidersLoaded] = useState(false);
   const [settings, setSettings] = useState(false);
+  const closeSetup = useCallback(() => setSettings(false), []);
   const [gallery, setGallery] = useState(false);
   const [market, setMarket] = useState(false);
   const [scriptsReady, setScriptsReady] = useState(false);
@@ -100,7 +104,7 @@ function App() {
       await refresh();
       setNotice(list.some(provider => provider.available) ? "已重新检测本地 AI 客户端" : "没有检测到可连接的本地 AI 客户端");
     } catch (error) {
-      setNotice(`无法加载本地 AI 客户端：${error instanceof Error ? error.message : String(error)}。请运行 npm run setup:native 后重试`);
+      setNotice(`无法加载本地 AI 客户端：${error instanceof Error ? error.message : String(error)}。请打开设置中的首次使用向导，安装或修复连接器后重新检测`);
     } finally {
       setProvidersLoaded(true);
     }
@@ -108,10 +112,13 @@ function App() {
   useEffect(() => {
     void refresh().catch(error => setNotice(String(error)));
     void refreshTargets();
+    if (extensionMode) void request("setupStatus").then(result => { if (!result.completed) setSettings(true); }).catch(() => {});
     void request("scriptsStatus").then(result => setScriptsReady(result.available));
-    if (extensionMode) void request<AgentProvider[]>("providers").then(setProviders).catch(error => setNotice(`无法加载本地 AI 客户端：${error instanceof Error ? error.message : String(error)}。请运行 npm run setup:native 后重试；若仍失败，完全退出并重启 Chrome`)).finally(() => setProvidersLoaded(true));
+    if (extensionMode) void request<AgentProvider[]>("providers").then(setProviders).catch(error => setNotice(`无法加载本地 AI 客户端：${error instanceof Error ? error.message : String(error)}。请打开设置中的首次使用向导，安装或修复连接器后重新检测；若仍失败，完全退出并重启 Chrome`)).finally(() => setProvidersLoaded(true));
     return subscribe(event => {
       if (event.type === "database") void refresh();
+      if (event.type === "targets") void refreshTargets();
+      if (event.type === "setup") { void refreshProviders(); void request("scriptsStatus").then(result => setScriptsReady(result.available)); }
       if (event.type === "status") setConnector(event.status);
       if (event.type === "connector") setConnector(event.status);
       if (event.type === "panelPreview") {
@@ -247,6 +254,7 @@ function App() {
         <span>AI 改造自己 · 表格变图表 · 网页批注…</span>
         <img src={logoUrl} alt="" />
       </button>
+      <PageActivityPanel targets={targets} targetId={targetId} onTargetChange={setTargetId} onSelect={id => { const entry = db.entries.find(item => item.id === id); if (entry) void selectEntry(entry); }} onError={setNotice} />
       <div className="search-box"><Search size={15} /><input aria-label="搜索微应用" placeholder="搜索微应用" value={search} onChange={event => setSearch(event.target.value)} /></div>
       <div className="mobile-scopes">{[["all", "全部"], ["installed", "已安装"], ["drafts", "候选"], ["favorites", "收藏"]].map(([value, label]) => <button key={value} className={scope === value ? "active" : ""} onClick={() => setScope(value)}>{label}</button>)}</div>
       <div className="list-caption"><span>{scope === "installed" ? "已安装" : scope === "drafts" ? "候选微应用" : scope === "favorites" ? "收藏" : "全部微应用"}</span><span>{entries.length}</span></div>
@@ -313,32 +321,7 @@ function App() {
     }} />
     {gallery && <DemoGallery busy={pending} addedTitles={(db.entries ?? []).map(entry => current(entry).definition.title)} onClose={() => setGallery(false)} onAdd={(demo, run) => act(() => addDemo(demo, run)).then(() => {})} onAddAll={() => act(addAllDemos).then(() => {})} />}
     {market && <ScriptMarket onClose={() => setMarket(false)} onImported={result => { void importedScript(result); }} onError={setNotice} />}
-    {settings && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setSettings(false); }}>
-      <section className="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-        <div className="modal-heading"><h2 id="settings-title">本地连接</h2><IconButton title="关闭设置" onClick={() => setSettings(false)}><X size={18} /></IconButton></div>
-        <div className="about-brand">
-          <img src={logoUrl} alt="" />
-          <div><strong>BeeHelper <span className="version">0.4.0</span></strong><span>赛博蜜蜂 · 让 AI 连接大千世界</span></div>
-          {extensionMode && <button type="button" onClick={() => { void chrome.tabs.create({ url: "https://cyberbee.top" }); }}>cyberbee.top<ExternalLink size={11} /></button>}
-        </div>
-        <div className="setting-row"><span>运行环境</span><strong>{extensionMode ? "Chrome 扩展" : "网页预览"}</strong></div>
-        <div className="setting-row"><span>扩展标识</span><code>{extensionMode ? chrome.runtime.id : "—"}</code></div>
-        <div className="setting-row"><span>当前会话</span><strong>{providerName} · {connector.version ?? (connector.ready ? "已就绪" : "未连接")}</strong></div>
-        {connector.authenticated !== undefined && <div className="setting-row"><span>登录状态</span><strong>{connector.authenticated ? "已登录" : "未登录"}</strong></div>}
-        <div className="setting-row"><span>页面脚本</span><strong>{scriptsReady ? "可用" : "未启用"}</strong></div>
-        {connectorMissing && <div className="setting-error">没有收到本地客户端列表：Native Messaging 连接器未注册或被浏览器忽略。请在项目目录运行 npm run setup:native，回到侧边栏点“重新检测”；若仍失败，完全退出并重启 Chrome。</div>}
-        {noUsableProvider && <div className="setting-error">没有检测到可连接的本地客户端。请先安装 Codex CLI、Claude Code 或 DeepSeek Harness，再运行 npm run setup:native 并点“重新检测”。</div>}
-        {(connectorMissing || noUsableProvider) && <div className="setting-actions">
-          <button type="button" className="secondary" disabled={pending} onClick={() => { void refreshProviders(); }}><RefreshCw size={13} />重新检测</button>
-          {extensionMode && <button type="button" className="secondary" onClick={() => { void chrome.tabs.create({ url: "https://github.com/Real-CyberBee/BeeHelper/blob/main/docs/connector-installation.md" }); }}>安装说明<ExternalLink size={12} /></button>}
-        </div>}
-        {providers.map(provider => <div className="agent-provider-status" key={provider.id}><div><span>{provider.name}</span><span className={`badge ${provider.available ? "green" : ""}`}>{provider.available ? "可连接" : provider.installed ? "已安装 · 需适配" : "未就绪"}</span></div>{provider.reason && !provider.available && <small>{provider.reason}</small>}</div>)}
-        {connector.error && <div className="setting-error">{connector.error}</div>}
-        <div className="modal-actions">{extensionMode && <button className="secondary" onClick={() => { void chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` }); }}>扩展详情<ExternalLink size={14} /></button>}
-          <button className="primary" disabled={pending || busy || !extensionMode || activeProviderUnavailable || noUsableProvider} onClick={() => { void act(connectAgent); }}><Plug size={15} />{pending ? "连接中…" : noUsableProvider ? "未检测到客户端" : activeProviderUnavailable ? "当前客户端未就绪" : connector.ready ? "检查连接" : `连接 ${providerName}`}</button>
-        </div>
-      </section>
-    </div>}
+    {settings && <SystemAppHost app={setupApp} onClose={closeSetup} />}
   </div>;
 }
 function RunOutput({ run, onStop }: { run?: Run; onStop: (id: string) => void }) {

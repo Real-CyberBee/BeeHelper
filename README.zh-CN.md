@@ -4,6 +4,12 @@
 
 浏览器侧边栏 AI 微应用工作台。借鉴 Tampermonkey 的脚本自由度，以浏览器环境下的 everything-is-a-plugin 为设计理念，通过本地插件连接 Codex、Claude Code 和 DeepSeek Harness。
 
+## 0.5.0 更新
+
+- macOS 图形预览安装器：内置 Node、稳定目录注册、修复与卸载。见[首次使用与安装说明](docs/getting-started.md)。Developer ID 签名、公证及干净机器分发验收仍待完成。
+- 首次使用向导与脱敏诊断迁移为第一项不可卸载的内置系统微应用；运行已有微应用可跳过 AI 连接。
+- 当前页面生效面板与工具栏角标依据真实文档实例，区分匹配、禁用、权限不足、已完成和未知状态。
+
 ## 0.4.0 蜜蜂黄与脚本生态
 
 - **蜜蜂黄浅色主题**：侧边栏、页面快捷入口、界面沙箱和本地测试站统一换成暖色浅色系。Logo 与扩展图标取自公司网站 [cyberbee.top](https://cyberbee.top)（`/logo/bee-96.png`、`/logo/bee-512.png`），派生图标在 `public/icons/`。
@@ -100,6 +106,9 @@ Windows 上扩展/UI 用例可以运行；依赖夹具 Native Messaging 的会�
 
 ## 文档
 
+- [首次使用与 macOS 预览安装包](docs/getting-started.md)
+- [竞争定位与短中长期 TODO 路线图](docs/roadmap.md)
+- [竞品、生态、技术趋势与资本兴趣调研](docs/research/2026-10-24-competitive-ecosystem-research.md)
 - [产品需求与首版范围](docs/product.md)
 - [技术方案初稿](docs/architecture.md)
 - [运行时与 Agent 选型调研](docs/research/README.md)
