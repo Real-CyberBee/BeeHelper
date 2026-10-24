@@ -86,13 +86,19 @@ npm run test:e2e
 npm run doctor
 ```
 
-E2E tests use a separate Chromium profile, not your personal Chrome pages or cookies. Set `CHROME_PATH` to choose a test browser, or run `npx playwright install chromium` if one is missing. Model-backed tests require explicit opt-in:
+E2E tests use a separate Chromium profile, never your personal pages or cookies. The harness runs on **Linux, macOS and Windows**: it resolves `CHROME_PATH` first, then the Playwright-managed Chromium, then the platform browser cache (`~/.cache/ms-playwright`, `~/Library/Caches/ms-playwright`, `%LOCALAPPDATA%\ms-playwright`). Runs are headless by default; set `E2E_HEADED=1` to watch them.
+
+By default the suite installs a fixture Native Messaging host backed by the repository's fake ACP agent, so no local connector or model quota is needed. Real connector and model tests are opt-in:
 
 ```sh
-BEEHELPER_LIVE_CODEX=1 npm run test:e2e
+# Real connector; run `npm run setup:native` and sign in to Codex first.
+BEEHELPER_E2E_CONNECTOR=1 npm run test:e2e
+
+# Add real model requests; consumes Codex quota.
+BEEHELPER_E2E_CONNECTOR=1 BEEHELPER_LIVE_CODEX=1 npm run test:e2e
 ```
 
-These tests consume the signed-in Codex account's model quota. Default E2E tests verify the real connection and local execution without sending model requests.
+On Windows the extension/UI cases run, while the fixture Native Messaging suite is skipped: Chrome on Windows requires a compiled `.exe` host instead of a shell wrapper.
 
 ## Documentation
 

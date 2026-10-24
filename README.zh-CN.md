@@ -82,13 +82,19 @@ npm run test:e2e
 npm run doctor
 ```
 
-E2E 使用独立 Chromium 测试配置，不操作个人 Chrome 的页面和 Cookie。测试浏览器可用 `CHROME_PATH` 指定；缺失时先执行 `npx playwright install chromium`。真实模型验证需显式设置：
+E2E 使用独立 Chromium 测试配置，不操作个人 Chrome 的页面和 Cookie，并且**支持 Linux / macOS / Windows**：先看 `CHROME_PATH`，再找 Playwright 管理的 Chromium，最后扫描各平台缓存目录（`~/.cache/ms-playwright`、`~/Library/Caches/ms-playwright`、`%LOCALAPPDATA%\ms-playwright`）。默认无头运行；设置 `E2E_HEADED=1` 可以看实际过程。
+
+默认套件会在临时配置里放一个指向仓库 fake ACP agent 的 Native Messaging 夹具，所以不需要本机连接器，也不消耗模型额度。真实连接器与真实模型需显式开启：
 
 ```sh
-BEEHELPER_LIVE_CODEX=1 npm run test:e2e
+# 真实连接器：先 npm run setup:native 并登录 Codex
+BEEHELPER_E2E_CONNECTOR=1 npm run test:e2e
+
+# 再加真实模型请求，会消耗 Codex 额度
+BEEHELPER_E2E_CONNECTOR=1 BEEHELPER_LIVE_CODEX=1 npm run test:e2e
 ```
 
-该项会使用已登录 Codex 的实际模型额度；默认 E2E 只验证真实连接与本地执行，不发送模型请求。
+Windows 上扩展/UI 用例可以运行；依赖夹具 Native Messaging 的会话套件会跳过——Windows 的 Chrome 要求编译好的 `.exe` 启动器，不能直接用 shell 包装脚本。
 
 ## 文档
 

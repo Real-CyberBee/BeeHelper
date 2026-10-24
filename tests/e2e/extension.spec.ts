@@ -1,13 +1,10 @@
-import { test, expect, chromium, type BrowserContext, type Page } from "@playwright/test";
-import { mkdtemp, mkdir, readFile, readdir, copyFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { test, expect, type BrowserContext, type Page } from "@playwright/test";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { Definition } from "../../src/core/model";
 import { panelSample } from "../../src/core/samples";
+import { connectorTest, copyInstalledNativeHost, e2eTempDirectory, enableUserScripts, extensionUrl, launchExtensionContext, liveModelTest, waitForServiceWorker, writeNativeHostFixture } from "./harness";
 
-const id = "llkomjgjbldjelaemjcgphogaceejbpi";
-const extensionUrl = `chrome-extension://${id}/index.html`;
 let context: BrowserContext, ui: Page, demo: Page, tabId: number;
 const errors: string[] = [];
 async function rpc(page: Page, type: string, data: Record<string, unknown> = {}): Promise<any> {
@@ -17,33 +14,19 @@ async function rpc(page: Page, type: string, data: Record<string, unknown> = {})
     return response.data;
   }, { type, data });
 }
-async function browserExecutable() {
-  if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
-  if (existsSync(chromium.executablePath())) return chromium.executablePath();
-  const cache = path.join(homedir(), "Library/Caches/ms-playwright");
-  for (const folder of (await readdir(cache)).filter(folder => /^chromium-\d+$/.test(folder)).sort((a, b) => Number(b.split("-")[1]) - Number(a.split("-")[1]))) {
-    const executable = path.join(cache, folder, "chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing");
-    if (existsSync(executable)) return executable;
-  }
-  throw new Error("未找到测试 Chromium，请运行 npx playwright install chromium");
-}
 test.describe.serial("真实扩展本地闭环", () => {
   test.beforeAll(async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "beehelper-e2e-"));
-    await mkdir(path.join(directory, "NativeMessagingHosts"), { recursive: true });
-    await copyFile(path.join(homedir(), "Library/Application Support/Google/Chrome/NativeMessagingHosts/io.beehelper.codex.json"), path.join(directory, "NativeMessagingHosts/io.beehelper.codex.json"));
+    const directory = await e2eTempDirectory("beehelper-e2e-");
+    // 默认用仓库内 fake ACP agent 夹具，不依赖本机连接器；需要真连 Codex 时才复制已安装清单。
+    if (connectorTest) await copyInstalledNativeHost(directory);
+    else if (process.platform !== "win32") await writeNativeHostFixture(directory, [
+      { id: "fixture-acp", name: "Fixture ACP", args: [path.resolve("tests/fixtures/fake-agent.mjs"), "--acp-fixture"] }
+    ]);
     const extension = path.resolve("dist");
-    context = await chromium.launchPersistentContext(directory, {
-      executablePath: await browserExecutable(), headless: false, viewport: { width: 1440, height: 960 },
-      args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, "--lang=en-US", "--no-first-run"]
-    });
-    const worker = context.serviceWorkers()[0] ?? await context.waitForEvent("serviceworker");
+    context = await launchExtensionContext(directory, { extension });
+    const worker = await waitForServiceWorker(context);
     worker.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
-    const extensions = await context.newPage();
-    await extensions.goto(`chrome://extensions/?id=${id}`);
-    await extensions.waitForTimeout(500);
-    await extensions.locator("#allow-user-scripts").locator("cr-toggle").click();
-    await extensions.close();
+    await enableUserScripts(context);
     demo = await context.newPage(); await demo.goto("http://127.0.0.1:4173/demo.html?view=client");
     ui = await context.newPage(); ui.on("pageerror", error => errors.push(error.message)); await ui.goto(extensionUrl);
     await expect(ui.getByRole("heading", { name: "微应用库" })).toBeVisible();
@@ -226,6 +209,7 @@ if (!disabled) throw new Error("误操作禁用控件");`
     await ui.setViewportSize({ width: 1440, height: 960 });
   });
   test("真实 Native Messaging 连接 Codex 并读取模型", async () => {
+    test.skip(!connectorTest, "设置 BEEHELPER_E2E_CONNECTOR=1 并使用已安装且已登录的 Codex 连接器");
     const result = await rpc(ui, "connect");
     expect(result.authenticated).toBe(true);
     expect(result.version).toContain("codex-cli");
@@ -234,7 +218,7 @@ if (!disabled) throw new Error("误操作禁用控件");`
     expect(errors).toEqual([]);
   });
   test("真实 Codex 经 MCP 创建候选，不操作业务页面", async () => {
-    test.skip(process.env.BEEHELPER_LIVE_CODEX !== "1", "按需开启真实模型请求");
+    test.skip(!liveModelTest, "需要 BEEHELPER_E2E_CONNECTOR=1 与 BEEHELPER_LIVE_CODEX=1");
     test.setTimeout(240_000);
     const title = "Codex 连通验证";
     await rpc(ui, "chat", { text: `请使用 beehelper 的 microapp_create 工具创建一个候选，title 为「${title}」，description 为「真实 MCP 链路验证」，kind=panel，trigger=manual，matches=["<all_urls>"]，schemaVersion=1，code 为 bee.mount("<h2>Codex 已连通</h2>");。创建后使用 microapp_run 展示这个界面，再通过 run_get 核实结果。不要安装，不要读取网页或本机文件。只创建一次，完成后简短回复。` });
@@ -253,7 +237,7 @@ if (!disabled) throw new Error("误操作禁用控件");`
     await expect.poll(async () => (await rpc(ui, "state")).db.entries.find((item: any) => item.id === entry.id).installed).toBe(true);
   });
   test("真实 Codex 使用微应用和网页上下文读取源码、点击悬浮按钮并读取日志", async () => {
-    test.skip(process.env.BEEHELPER_LIVE_CODEX !== "1", "按需开启真实模型请求");
+    test.skip(!liveModelTest, "需要 BEEHELPER_E2E_CONNECTOR=1 与 BEEHELPER_LIVE_CODEX=1");
     test.setTimeout(240_000);
     await rpc(ui, "newChat");
     const widget = await rpc(ui, "operation", { operation: { type: "create", definition: {
@@ -282,7 +266,7 @@ if (!disabled) throw new Error("误操作禁用控件");`
     await expect.poll(async () => ui.evaluate(async () => (await chrome.runtime.getContexts({ contextTypes: [chrome.runtime.ContextType.SIDE_PANEL] })).length)).toBeGreaterThan(0);
   });
   test("真实 Codex 读取显式上传的 CSV 与图片", async () => {
-    test.skip(process.env.BEEHELPER_LIVE_CODEX !== "1", "按需开启真实模型请求");
+    test.skip(!liveModelTest, "需要 BEEHELPER_E2E_CONNECTOR=1 与 BEEHELPER_LIVE_CODEX=1");
     test.setTimeout(240_000);
     await rpc(ui, "sessionNew", { providerId: "codex" }); await rpc(ui, "connect");
     const state = await rpc(ui, "state"), session = state.db.sessions.find((item: any) => item.id === state.db.activeSessionId);

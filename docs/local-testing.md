@@ -56,12 +56,23 @@
 
 ## 4. 自动验证
 
-- `npm test`：版本快照、并发修改冲突、恢复、包校验、URL 匹配、插件释放、Native Messaging 帧解析。
-- `npm run test:e2e`：在独立 Chromium 配置中加载真实扩展，打开用户脚本开关，操作本地网页与原生侧边栏，并验证真实 Native Messaging 连接。
-- `BEEHELPER_LIVE_CODEX=1 npm run test:e2e`：额外发起真实模型任务，经 MCP 创建候选并显示界面，消耗当前 Codex 账户的模型额度。
+- `npm test`：版本快照、并发修改冲突、恢复、包校验、URL 匹配、插件释放、Native Messaging 帧解析，以及用户脚本导入与示例校验。
+- `npm run test:e2e`：在独立 Chromium 配置中加载真实扩展，打开用户脚本开关，操作本地网页与原生侧边栏。默认使用仓库内的 fake ACP agent 与夹具 native host，**不依赖本机连接器，也不调用模型**。
 - `.local/screenshots/`：桌面与窄侧边栏截图。
 
-E2E 不复用个人浏览器配置。测试临时配置中单独放置 host 注册文件，是因为自定义 user-data-dir 的查找位置与正常安装不同。
+E2E 启动器在 `tests/e2e/harness.ts`，支持 Linux / macOS / Windows：
+
+| 环境变量 | 作用 |
+| --- | --- |
+| `CHROME_PATH` | 指定 Chrome/Chromium 可执行文件，优先级最高 |
+| `E2E_HEADED=1` | 有头运行；默认无头，CI 无显示器也能跑 |
+| `BEEHELPER_E2E_CONNECTOR=1` | 使用本机已安装的连接器，而不是夹具（需先 `npm run setup:native` 并登录 Codex） |
+| `BEEHELPER_LIVE_CODEX=1` | 在连接器基础上允许真实模型请求，消耗 Codex 额度 |
+
+- 未设置 `CHROME_PATH` 时，会依次尝试 Playwright 管理的 Chromium 和各平台缓存目录（Linux `~/.cache/ms-playwright`、macOS `~/Library/Caches/ms-playwright`、Windows `%LOCALAPPDATA%\ms-playwright`）。
+- Windows 上 Chrome 只接受编译好的 `.exe` 作为 native host，不能使用 shell 包装器；扩展/UI 用例照常运行，会话夹具套件自动跳过。
+- 真连 Codex 的用例由 `BEEHELPER_E2E_CONNECTOR=1` 控制；真实模型用例还需 `BEEHELPER_LIVE_CODEX=1`。默认套件不会误报连接成功。
+- E2E 不复用个人浏览器配置。测试临时配置中单独放置 host 注册文件，是因为自定义 user-data-dir 的查找位置与正常安装不同。
 
 ## 5. 常见问题
 

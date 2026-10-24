@@ -1,10 +1,8 @@
-import { test, expect, chromium, type BrowserContext, type Page } from "@playwright/test";
-import { mkdtemp, mkdir, writeFile, readFile, readdir, rm } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { test, expect, type BrowserContext, type Page } from "@playwright/test";
+import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
+import { e2eTempDirectory, extensionId, launchExtensionContext, waitForServiceWorker, writeNativeHostFixture } from "./harness";
 
-const extensionId = "llkomjgjbldjelaemjcgphogaceejbpi";
 let context: BrowserContext, page: Page, directory: string;
 async function rpc(type: string, data: Record<string, unknown> = {}): Promise<any> {
   return page.evaluate(async ({ type, data }) => {
@@ -13,31 +11,16 @@ async function rpc(type: string, data: Record<string, unknown> = {}): Promise<an
     return result.data;
   }, { type, data });
 }
-async function executable() {
-  if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
-  if (existsSync(chromium.executablePath())) return chromium.executablePath();
-  const cache = path.join(homedir(), "Library/Caches/ms-playwright");
-  for (const folder of (await readdir(cache)).filter(folder => /^chromium-\d+$/.test(folder)).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))) {
-    const file = path.join(cache, folder, "chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing");
-    if (existsSync(file)) return file;
-  }
-  throw new Error("请先安装测试 Chromium");
-}
 test.describe.serial("会话工作台：真实扩展与协议夹具，不调用模型", () => {
+  test.skip(process.platform === "win32", "Windows 的 Native Messaging 需要编译 .exe 启动器；本套件在 macOS/Linux 运行");
   test.beforeAll(async () => {
-    directory = await mkdtemp(path.join(tmpdir(), "bee-sessions-"));
-    const hosts = path.join(directory, "NativeMessagingHosts"); await mkdir(hosts);
-    const wrapper = path.join(directory, "native-host.sh");
-    const agentsFile = path.join(directory, "agents.json");
-    await writeFile(agentsFile, JSON.stringify({ agents: [
-      { id: "fixture-acp", name: "Fixture ACP", command: process.execPath, args: [path.resolve("tests/fixtures/fake-agent.mjs"), "--acp-fixture"] },
-      { id: "fixture-acp-permission", name: "Permission ACP", command: process.execPath, args: [path.resolve("tests/fixtures/fake-agent.mjs"), "--acp-fixture", "--permission-on-connect"] }
-    ] }));
-    const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
-    await writeFile(wrapper, `#!/bin/sh\nexport BEEHELPER_CODEX=${quote(path.resolve("tests/fixtures/fake-agent.mjs"))}\nexport BEEHELPER_WORKSPACE=${quote(path.join(directory, "workspace"))}\nexport BEEHELPER_AGENTS_CONFIG=${quote(agentsFile)}\nexec ${quote(process.execPath)} ${quote(path.resolve("connector/host.mjs"))} "$@"\n`, { mode: 0o700 });
-    await writeFile(path.join(hosts, "io.beehelper.codex.json"), JSON.stringify({ name: "io.beehelper.codex", description: "BeeHelper isolated fixture", path: wrapper, type: "stdio", allowed_origins: [`chrome-extension://${extensionId}/`] }));
-    const extension = path.resolve("dist");
-    context = await chromium.launchPersistentContext(directory, { executablePath: await executable(), headless: false, viewport: { width: 1440, height: 960 }, args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, "--no-first-run"] });
+    directory = await e2eTempDirectory("bee-sessions-");
+    await writeNativeHostFixture(directory, [
+      { id: "fixture-acp", name: "Fixture ACP", args: [path.resolve("tests/fixtures/fake-agent.mjs"), "--acp-fixture"] },
+      { id: "fixture-acp-permission", name: "Permission ACP", args: [path.resolve("tests/fixtures/fake-agent.mjs"), "--acp-fixture", "--permission-on-connect"] }
+    ]);
+    context = await launchExtensionContext(directory, { extension: path.resolve("dist") });
+    await waitForServiceWorker(context);
     page = await context.newPage(); await page.goto(`chrome-extension://${extensionId}/index.html`);
     await expect(page.getByRole("heading", { name: "AI 会话" })).toBeVisible();
   });

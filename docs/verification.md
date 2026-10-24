@@ -102,7 +102,7 @@
 | 命令或验证项 | 结果 |
 | --- | --- |
 | `npm run check` | 通过 |
-| `npm test` | 59 项通过（新增用户脚本解析/转换/示例校验 6 项） |
+| `npm test` | 64 项通过（新增用户脚本解析/转换/示例校验 6 项，E2E 跨平台启动器 5 项） |
 | `npm run build` | 通过，`dist/` 含图标、Logo、favicon、demo 页 |
 | 真实扩展加载与 `userscriptSearch` | 通过：后台直连 ScriptCat 返回热门脚本，不受网页 CORS 限制 |
 | 真实扩展 `userscriptImport` | 通过：脚本转换为未安装候选，源码可编译 |
@@ -112,8 +112,11 @@
 | `bee.apps.list/update` | 通过：网页预览与扩展中均可列出并切换收藏 |
 | `bee.askAI` 失败路径 | 通过：未连接客户端时返回可读错误，不伪装成功 |
 | 移动端 390×844 | 通过：库、会话与底部导航无横向溢出 |
-| `npm run test:e2e` | 未执行：现有 E2E 的 `beforeAll` 依赖 macOS Chrome 配置与 Native Messaging 路径，本环境为 Linux；未用伪造结果替代 |
+| `npm run test:e2e`（Linux，无头，默认夹具） | **23 项通过，4 项跳过**（真实连接器 1 项 + 真实模型 3 项）；扩展本地闭环与会话夹具套件完整运行 |
+| E2E 启动器跨平台路径 | 单测覆盖 Linux/macOS/Windows 的 Chromium 缓存、Native Messaging 清单与 `CHROME_PATH` 优先级 |
 
 GreasyFork 在本环境网络下不可达（超时），已验证错误提示与离线 `.user.js` 导入路径；ScriptCat 可正常搜索与导入。
 
-本环境未安装 Native Messaging 连接器，因此 `npm run doctor` 与真实模型会话未验证；`bee.askAI` 的排队与投递逻辑复用既有会话服务单元测试。
+默认 E2E 使用仓库内 fake ACP agent 与临时 native host 夹具，不需要本机连接器，也不会调用模型。本环境未安装真实连接器，因此 `npm run doctor`、真实连接器用例与真实模型会话未验证（对应 4 项显式 skipped，不会伪装成通过）；`bee.askAI` 的排队与投递逻辑复用既有会话服务单元测试。
+
+跨平台说明：默认无头，`E2E_HEADED=1` 有头；`CHROME_PATH` 可覆盖浏览器；Linux/macOS 可跑全部本地用例；Windows 上扩展/UI 用例可跑，依赖 Native Messaging 夹具的会话套件因缺少 `.exe` 启动器自动跳过。
