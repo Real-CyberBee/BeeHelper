@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using System.Threading;
 
 // 浏览器需要真正的 exe 宿主；不经过 cmd.exe，继承 Native Messaging 标准流。
 class BeeHelperLauncher {
@@ -17,6 +18,14 @@ class BeeHelperLauncher {
         result.Append('\\', slashes * 2); result.Append('"');
         return result.ToString();
     }
+    static async Task Pump(Stream input, Stream output) {
+        var buffer = new byte[8192]; int count;
+        while ((count = await input.ReadAsync(buffer, 0, buffer.Length)) > 0) {
+            await output.WriteAsync(buffer, 0, count);
+            // FileStream 有缓冲；Native Messaging 帧必须立即送达，而不能等到 EOF。
+            await output.FlushAsync();
+        }
+    }
     static int Main(string[] args) {
         try {
             string root = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
@@ -27,11 +36,11 @@ class BeeHelperLauncher {
             info.RedirectStandardInput = true; info.RedirectStandardOutput = true; info.RedirectStandardError = true;
             using (var child = Process.Start(info)) {
                 // 显式转发二进制流；.NET 默认继承无法保证浏览器的管道句柄可继承。
-                var input = Console.OpenStandardInput().CopyToAsync(child.StandardInput.BaseStream).ContinueWith(task => {
+                var input = Pump(Console.OpenStandardInput(), child.StandardInput.BaseStream).ContinueWith(task => {
                     try { child.StandardInput.Close(); } catch (ObjectDisposedException) { }
                 });
-                var output = child.StandardOutput.BaseStream.CopyToAsync(Console.OpenStandardOutput());
-                var error = child.StandardError.BaseStream.CopyToAsync(Console.OpenStandardError());
+                var output = Pump(child.StandardOutput.BaseStream, Console.OpenStandardOutput());
+                var error = Pump(child.StandardError.BaseStream, Console.OpenStandardError());
                 child.WaitForExit(); Task.WaitAll(output, error); return child.ExitCode;
             }
         } catch (Exception error) { Console.Error.WriteLine(error.Message); return 1; }
