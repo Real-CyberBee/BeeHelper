@@ -17,14 +17,23 @@ export async function findExecutable(name, override) {
   const nvm = path.join(homedir(), ".nvm/versions/node");
   try { for (const version of (await readdir(nvm)).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))) dirs.push(path.join(nvm, version, "bin")); } catch {}
   for (const dir of new Set(dirs.filter(Boolean))) {
-    const file = path.join(dir, name);
-    if (await exists(file)) return file;
+    for (const suffix of process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""]) {
+      const file = path.join(dir, name + suffix);
+      if (await exists(file)) return file;
+    }
   }
 }
 export async function executableLaunch(file, args = []) {
+  if (process.platform === "win32" && /\.(cmd|bat)$/i.test(file)) {
+    // 只解析 npm 标准 JavaScript shim，不通过 shell 执行未知脚本。
+    const shim = await readFile(file, "utf8");
+    const target = shim.match(/%dp0%[\\/](node_modules[\\/][^"\r\n]+?\.[cm]?js)"/i)?.[1];
+    if (!target) throw new Error("此 Windows 启动脚本不是可识别的 npm shim，请指定 Agent 的 exe 或 JavaScript 入口");
+    file = path.resolve(path.dirname(file), target);
+  }
   const resolved = await realpath(file);
   if (/\.[cm]?js$/.test(resolved)) {
-    const siblingNode = path.join(path.dirname(file), "node");
+    const siblingNode = path.join(path.dirname(file), process.platform === "win32" ? "node.exe" : "node");
     const runtime = await exists(siblingNode) ? siblingNode : process.versions?.node ? process.execPath : await findExecutable("node");
     if (!runtime) throw new Error("此第三方 Agent 的 JavaScript 入口需要其自己的 Node 运行时");
     return { command: runtime, args: [file, ...args] };

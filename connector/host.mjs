@@ -31,7 +31,7 @@ const sessions = new SessionHost({
   mcpPath: process.versions?.node ? fileURLToPath(new URL("./mcp.mjs", import.meta.url)) : "--mcp",
   emit: event => emit({ kind: "event", event })
 });
-sessions.socketPath = path.join(directory, "tools.sock");
+sessions.socketPath = process.platform === "win32" ? String.raw`\\.\pipe\beehelper-${path.basename(directory)}` : path.join(directory, "tools.sock");
 const broker = new ToolBroker({ sessions, emit });
 await broker.listen(sessions.socketPath);
 async function rpc(method, params = {}) {

@@ -35,7 +35,7 @@ export class ToolBroker {
   }
   async listen(socketPath) {
     await new Promise((resolve, reject) => { this.server.once("error", reject); this.server.listen(socketPath, resolve); });
-    await chmod(socketPath, 0o600);
+    if (process.platform !== "win32") await chmod(socketPath, 0o600);
   }
   reply(message) {
     const pending = this.pending.get(message.id);

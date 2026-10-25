@@ -1,0 +1,76 @@
+name: Build release downloads
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            name: Linux-x64
+            kind: portable
+          - os: windows-2022
+            name: Windows-x64
+            kind: portable
+          - os: macos-15
+            name: macOS-arm64
+            kind: macos
+          - os: macos-15-intel
+            name: macOS-x64
+            kind: macos
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: Build and verify portable archive
+        if: matrix.kind == 'portable'
+        run: |
+          mkdir -p .local
+          curl -fsSL "https://raw.githubusercontent.com/nodejs/node/$(node -p 'process.version')/LICENSE" -o .local/NODE-LICENSE
+          export BEEHELPER_NODE_LICENSE="$PWD/.local/NODE-LICENSE"
+          npm run build:portable
+          npm run test:portable
+      - name: Build and verify macOS installer
+        if: matrix.kind == 'macos'
+        run: |
+          npm run build:installer
+          npm run test:installer
+      - uses: actions/upload-artifact@v4
+        with:
+          name: downloads-${{ matrix.name }}
+          if-no-files-found: error
+          path: |
+            .local/installers/*.dmg
+            .local/installers/*.zip
+            .local/installers/*.tar.gz
+            .local/installers/*.sha256
+  collect:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: downloads-*
+          path: downloads
+          merge-multiple: true
+      - name: Verify and collect checksums
+        working-directory: downloads
+        run: |
+          cat *.sha256 > SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-release-downloads
+          path: downloads/
