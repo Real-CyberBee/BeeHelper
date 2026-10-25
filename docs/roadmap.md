@@ -4,6 +4,16 @@
 
 本文将本轮提出的 8 个方向整理为产品待办，并结合[竞品、生态、技术与资本调研](research/2026-10-24-competitive-ecosystem-research.md)提出增补建议。所有未勾选事项均为待办，优先级、时间窗口、指标是建议，不代表已实现、排期承诺或已有用户数据。首版历史决策仍见[产品文档](product.md)，后续范围以本文讨论为增补。
 
+## 0.6.0 跨平台下载与文档站进度（2026-10-25）
+
+- [x] 提供 Windows x64 ZIP、Linux x64 tar.gz、macOS Apple Silicon / Intel DMG，均带扩展和连接器。
+- [x] Windows 真正的 exe Native Messaging 宿主、命名管道、标准 npm JavaScript shim 解析；Linux / Windows 内置 Node，无需额外安装运行时。
+- [x] 四种目标在 GitHub Actions 构建并执行隔离安装和协议烟测；Linux / Windows 额外覆盖 MCP 工具往返、修复、失败保留和卸载。
+- [x] GitHub Pages 增加下载区、示例、FAQ 与文档中心，仓库 Markdown 自动生成站内文档。
+- [ ] 商业签名、公证、各系统版本的干净机器 GUI 全链路、Linux / Windows ARM、沙箱浏览器及自动更新。
+
+本节更新下文 S03 的最小预览交付状态，不将协议烟测视为所有真实客户端和系统环境已验收。操作指南见[分平台安装](install.md)。
+
 ## 0.5.1 安装包瘦身进度（2026-10-24）
 
 - [x] 将 macOS 分发从内置 Node/生产依赖改为 Swift + 系统 JavaScriptCore，不包含 Node、node_modules 或 Claude 大型引擎，不隐式下载运行时。

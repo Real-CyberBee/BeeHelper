@@ -6,6 +6,13 @@ English | [简体中文](README.zh-CN.md)
 
 An AI microapp workbench in the browser sidebar. Inspired by Tampermonkey's scripting freedom and the everything-is-a-plugin architecture, BeeHelper lets you create, preview, install, and refine browser microapps through external coding agents. Local adapters connect Codex, Claude Code, and DeepSeek Harness.
 
+## What’s New in 0.6.0
+
+- Downloadable previews for **Windows x64, Linux x64, macOS Apple Silicon and macOS Intel**, including the extension and connector. Windows/Linux include their Node runtime; macOS keeps the lightweight system JavaScriptCore implementation.
+- A platform download page and a documentation center, with installation, Agent sessions, microapp SDK, userscripts, troubleshooting and verification records: [website](https://real-cyberbee.github.io/BeeHelper/) · [documentation](https://real-cyberbee.github.io/BeeHelper/docs/) · [platform installation guide](docs/install.md).
+- Windows uses an executable Native Messaging launcher, named pipes and standard npm shim discovery. Portable archives support per-user install, repair and unregister; old extension directories are retained during upgrades.
+- Releases remain unsigned previews (macOS has no Developer ID signature/notarization; Windows has no Authenticode signature). CI protocol checks do not replace clean-machine acceptance across every supported OS version.
+
 ## What’s New in 0.5.1
 
 - A macOS installer under 1 MB in the current arm64 build, including the extension. The build fails if the complete DMG exceeds 5,000,000 bytes.
@@ -59,7 +66,7 @@ To upgrade, stop in-flight tasks, reload BeeHelper at `chrome://extensions/`, re
 
 The primary interface is the **native Chrome side panel**, opened from the extension toolbar icon or a microapp's in-page shortcut. Full-tab and web previews are auxiliary debugging surfaces, not replacements for the extension sidebar.
 
-Requirements: Chrome 138+, Node.js 22.12+, and at least one installed, configured local agent (Codex CLI, Claude Code, or dsh). dsh uses its own compatible Node runtime. The prototype has been verified on macOS and on Linux (Chrome 152, with Claude Code 2.1 and DeepSeek Harness 0.2 connected over ACP); Windows native-messaging installation is not implemented.
+Requirements: Chrome 138+, Node.js 22.12+, and at least one installed, configured local agent (Codex CLI, Claude Code, or dsh). dsh uses its own compatible Node runtime. The prototype has been verified on macOS and on Linux (Chrome 152, with Claude Code 2.1 and DeepSeek Harness 0.2 connected over ACP); Windows users should use the published portable package, which includes an executable Native Messaging launcher. Source-mode `setup:native` remains macOS/Linux only.
 
 After `npm run setup:native`, click **重新检测** in the sidebar; current Chrome versions usually pick up a new host manifest immediately. If the host is still not found, fully quit and restart the browser. If the default client (Codex) is not installed, pick Claude Code or DSH in the new-chat selector; the sidebar now defaults to an available client on its own. See [Connector Installation](docs/connector-installation.md) for the installer roadmap and per-browser paths.
 
@@ -118,7 +125,9 @@ On Windows the extension/UI cases run, while the fixture Native Messaging suite 
 
 ## Documentation
 
-Detailed project documents are currently in Chinese:
+Detailed project documents are currently in Chinese. Browse the [documentation center](https://real-cyberbee.github.io/BeeHelper/docs/), or read the sources below:
+
+- [Platform Downloads and Installation](docs/install.md)
 
 - [First-use Wizard and macOS Preview Installer](docs/getting-started.md) (Chinese)
 - [Product Roadmap and TODO](docs/roadmap.md) (Chinese)

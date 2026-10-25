@@ -1,10 +1,10 @@
 # 首次使用与 macOS 预览安装包
 
-适用版本：0.5.1。当前提供 macOS 图形安装器，编译目标为 macOS 13+，已在当前 arm64 环境验证；macOS 13/x64 实机验收与 Windows/Linux 图形安装包仍在 TODO 中。
+适用版本：0.6.0。本页主要介绍 macOS 图形安装器与通用首次使用向导；Windows / Linux 下载与操作请看[分平台安装指南](install.md)。macOS 编译目标为 13+，提供 arm64 / x64 构建；CI 安装与协议烟测不替代各系统版本的干净机器验收。
 
 ## 普通用户安装
 
-1. 从 [GitHub Release](https://github.com/Real-CyberBee/BeeHelper/releases/tag/v0.5.1) 下载与 CPU 架构匹配的 DMG（v0.5.1 提供 Apple Silicon arm64）。打开后双击 **BeeHelper Installer.app**，选择“安装 / 修复”。安装器使用 macOS 自带的 JavaScriptCore、Foundation 和 CryptoKit，不包含 Node、npm 或 node_modules，不需要额外安装运行时、终端、源码仓库或管理员权限。
+1. 从 [GitHub Release](https://github.com/Real-CyberBee/BeeHelper/releases/tag/v0.6.0) 下载与 CPU 架构匹配的 DMG（提供 Apple Silicon arm64 与 Intel x64）。打开后双击 **BeeHelper Installer.app**，选择“安装 / 修复”。安装器使用 macOS 自带的 JavaScriptCore、Foundation 和 CryptoKit，不包含 Node、npm 或 node_modules，不需要额外安装运行时、终端、源码仓库或管理员权限。
 2. 安装完成后 Finder 会打开 `extension` 文件夹。在 Chrome 扩展页面开启开发者模式，点“加载已解压的扩展”，选择该文件夹。当前尚未上架扩展商店，这是预览版的浏览器安装步骤。
 3. 在 BeeHelper 扩展详情启用“允许用户脚本”。打开工具栏 BeeHelper 图标，首次使用向导会检查环境；也可从右上角“设置”重新打开。
 4. 不连接 AI 也可以运行已有微应用。在示例画廊添加并试用“批量文本整理”，输入几行重复文本，点击“去重并整理”，确认结果。
@@ -43,7 +43,7 @@ npm ci
 npm run build:installer
 ```
 
-产物位于 `.local/installers/BeeHelper-0.5.1-macOS-<arch>.dmg`，同时生成 SHA256 文件。构建机需要 Node/npm 和 Xcode Command Line Tools（Swift 编译器）；这些只是开发工具，不进入安装包。原生程序按当前架构编译并剥离调试符号，esbuild 只编入实际使用的连接代码，并保留第三方许可证。扩展文件照常打包，不复制开发者的 `.local`、Agent 配置或凭据。
+产物位于 `.local/installers/BeeHelper-0.6.0-macOS-<arch>.dmg`，同时生成 SHA256 文件。构建机需要 Node/npm 和 Xcode Command Line Tools（Swift 编译器）；这些只是开发工具，不进入安装包。原生程序按当前架构编译并剥离调试符号，esbuild 只编入实际使用的连接代码，并保留第三方许可证。扩展文件照常打包，不复制开发者的 `.local`、Agent 配置或凭据。
 
 体积门槛为完整 DMG 不超过 **5,000,000 字节**，超限构建失败；本次 arm64 产物约 **0.94 MB**。该体积包含扩展、连接器与 GUI 安装器，不通过首次启动下载大运行时来转移体积。源码模式的 Node 连接器继续保留用于开发与其它平台验证。
 
@@ -62,7 +62,7 @@ npm run test:installer
 
 如维护者已配置签名证书与 notarytool keychain profile，可设置 `BEEHELPER_SIGN_IDENTITY` 和 `BEEHELPER_NOTARY_PROFILE` 后构建。构建脚本会签名、提交公证并 staple；没有这些配置时只产出本地临时签名包，终端元数据中 `signed` 和 `notarized` 为 false。
 
-GitHub Actions 的 Verify BeeHelper 工作流默认执行类型、单元、构建和无模型浏览器回归；手动启动 workflow_dispatch 时额外执行原生协议测试、构建 macOS 预览安装器并上传构建产物，不自动创建公开 Release。CI 架构取决于运行器，不替代其他架构实机验收。
+GitHub Actions 的 Verify BeeHelper 工作流默认执行类型、单元、构建和无模型浏览器回归；手动启动 workflow_dispatch 时额外执行原生协议测试、构建 macOS 预览安装器并上传构建产物，不自动创建公开 Release。跨平台下载由 Build release downloads 工作流构建并验证，维护者核对完成后上传公开 Release。CI 架构取决于运行器，不替代其他架构实机验收。
 
 ## 内置微应用约定
 
@@ -74,4 +74,4 @@ GitHub Actions 的 Verify BeeHelper 工作流默认执行类型、单元、构�
 
 ## 官网维护
 
-官网位于 `site/`，采用 CyberBee 官方 Logo 与扁平布局，不依赖扩展运行环境。推送 `site/**` 或 Pages 工作流变更到 main 后，`.github/workflows/pages.yml` 会自动部署到 [GitHub Pages](https://real-cyberbee.github.io/BeeHelper/)。版本下载链接应与实际公开 Release 保持一致。
+官网位于 `site/`，采用 CyberBee 官方 Logo 与扁平布局，不依赖扩展运行环境。推送 `site/**`、`docs/**`、文档生成脚本或 Pages 工作流变更到 main 后，`.github/workflows/pages.yml` 会将 Markdown 文档生成带导航的 HTML，并自动部署到 [GitHub Pages](https://real-cyberbee.github.io/BeeHelper/)。版本下载链接应与实际公开 Release 保持一致。

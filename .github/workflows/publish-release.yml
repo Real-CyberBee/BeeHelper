@@ -1,0 +1,43 @@
+name: Publish verified release
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful Build release downloads run ID
+        required: true
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check build provenance and binary inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID" > /tmp/build-run.json
+          jq -e '.name == "Build release downloads" and .conclusion == "success"' /tmp/build-run.json
+          build_sha=$(jq -r .head_sha /tmp/build-run.json)
+          git diff --exit-code "$build_sha" "$GITHUB_SHA" -- package.json package-lock.json connector src shared public packaging scripts/build-extension.mjs scripts/build-installer.mjs scripts/build-native.mjs scripts/build-portable.mjs scripts/verify-installer.mjs scripts/verify-portable.mjs extension.manifest.json vite.config.ts index.html sidepanel.html sandbox.html
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.build_run_id }}
+          name: verified-release-downloads
+          path: downloads
+      - name: Verify checksums and publish preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd downloads
+          sha256sum --check SHA256SUMS.txt
+          cd ..
+          version=$(node -p "JSON.parse(require('fs').readFileSync('package.json')).version")
+          gh release create "v$version" downloads/*.dmg downloads/*.zip downloads/*.tar.gz downloads/SHA256SUMS.txt --target "$GITHUB_SHA" --title "BeeHelper v$version · 跨平台公开预览版" --notes-file "docs/releases/$version.md" --prerelease --draft
+          gh release edit "v$version" --draft=false

@@ -1,5 +1,17 @@
 # 本机验证记录
 
+## 0.6.0 跨平台下载与官网文档
+
+- 本地类型检查、80 项单元测试通过；浏览器回归 28 项通过，4 项真实客户端 / 模型用例按默认配置跳过。
+- macOS arm64 本地 DMG 构建与临时用户目录安装、ACP 握手、修复、卸载通过。
+- 跨平台 Release 工作流在 Linux x64、Windows x64、macOS arm64、macOS x64 环境构建真实下载文件。Linux / Windows 从归档解包开始，验证安装、Native Messaging 二进制帧、ACP 握手、MCP 工具往返、修复、缺文件时保留已安装版本及卸载；macOS 验证安装与 ACP 握手。
+- 官网与文档以 `npm run build:site` 生成，文档源位于 `docs/`，内部文档链接转换为站内页面。静态文件与锚点检查覆盖首页及全部文档。
+
+平台下载以 [Release](https://github.com/Real-CyberBee/BeeHelper/releases/tag/v0.6.0) 中实际上传的文件为准；CI 完成记录见 [Build release downloads](https://github.com/Real-CyberBee/BeeHelper/actions/workflows/release.yml)。Windows 首轮烟测暴露启动器标准流缓冲未及时刷新的问题，修复后重新运行，失败记录作为历史保留。
+
+未覆盖：Windows 10 / 11 和所有 Linux 发行版的干净机器 GUI 安装验收、真实浏览器策略与 Windows SmartScreen / macOS Gatekeeper 下载链路、商业签名与公证、真实模型生成、Linux / Windows ARM、musl 和沙箱浏览器。协议夹具成功不能证明任意第三方 Agent 已登录或有模型额度。
+
+
 ## 0.5.1 原生轻量分发：2026-10-24
 
 - 当前 macOS arm64 完整 DMG 约 0.94 MB（含扩展、GUI 安装器、原生连接器和连接脚本），低于 5,000,000 字节构建门槛。包内无 Node、node_modules 或 Claude 引擎；没有首次启动下载运行时的步骤。`otool -L` 检查到的动态库均为 macOS 系统库，构建对非系统动态库依赖直接报错。

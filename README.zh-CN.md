@@ -4,6 +4,14 @@
 
 [English](README.md) | 简体中文
 
+## 0.6.0 更新
+
+- 新增 Windows x64、Linux x64、macOS Apple Silicon 与 Intel 下载，均包含扩展和连接器。Windows / Linux 内置 Node；macOS 保留系统 JavaScriptCore 轻量方案。
+- 新增 [文档中心](https://real-cyberbee.github.io/BeeHelper/docs/) 与[分平台安装指南](docs/install.md)，涵盖安装、升级、卸载、Agent、微应用开发及排障。
+- Windows 使用真正的 exe 宿主、命名管道与标准 npm shim 识别。安装使用当前用户，不需要管理员；升级保留旧扩展目录。
+- 仍为未完成商业签名的预览版。macOS 无 Developer ID 签名 / 公证，Windows 无 Authenticode 签名；CI 烟测不等于所有系统版本的干净机器验收。
+
+
 浏览器侧边栏 AI 微应用工作台。借鉴 Tampermonkey 的脚本自由度，以浏览器环境下的 everything-is-a-plugin 为设计理念，通过本地插件连接 Codex、Claude Code 和 DeepSeek Harness。
 
 ## 0.5.1 更新
