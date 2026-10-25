@@ -76,4 +76,13 @@ try {
   if (process.platform !== "win32") assert.equal(JSON.parse(await readFile(paths.manifests[1])).path, "/another/connector");
   await access(repaired.extensionDirectory);
   console.log(JSON.stringify({ ok: true, platform: process.platform, arch: process.arch, archiveExtracted: true, installation: true, nativeMessaging: true, acp: true, mcpRoundtrip: true, repair: true, failurePreservesInstallation: true, uninstall: true, bundledRuntime: true }));
-} finally { child?.kill(); await rm(temp, { recursive: true, force: true }); }
+} catch (error) { console.error(error); throw error; }
+finally {
+  if (child) {
+    if (process.platform === "win32") {
+      const { execFileSync } = await import("node:child_process");
+      try { execFileSync("taskkill.exe", ["/pid", String(child.pid), "/t", "/f"], { stdio: "ignore" }); } catch {}
+    } else child.kill();
+  }
+  await rm(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+}

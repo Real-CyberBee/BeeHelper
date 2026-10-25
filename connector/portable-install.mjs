@@ -14,7 +14,7 @@ export function portablePaths({ home = homedir(), platform = process.platform, l
   return { root, record: path.join(root, "installation.json"), manifests: platform === "win32" ? [path.join(root, `${hostName}.json`)]
     : ["google-chrome", "google-chrome-for-testing", "chromium"].map(browser => path.join(home, ".config", browser, "NativeMessagingHosts", `${hostName}.json`)) };
 }
-const reg = args => execFileSync("reg.exe", args, { encoding: "utf8", windowsHide: true });
+const reg = args => execFileSync("reg.exe", args, { encoding: "utf8", windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
 function registryValue(key) {
   try { return reg(["query", key, "/ve"]).match(/REG_SZ\s+([^\r\n]+)/)?.[1].trim(); } catch { return undefined; }
 }
